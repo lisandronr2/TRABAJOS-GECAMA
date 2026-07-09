@@ -1,0 +1,9 @@
+#!/bin/sh
+# Gradle wrapper script
+GRADLE_WRAPPER_JAR="gradle/wrapper/gradle-wrapper.jar"
+if [ ! -f "$GRADLE_WRAPPER_JAR" ]; then
+    echo "Downloading Gradle wrapper..."
+    curl -Lo "$GRADLE_WRAPPER_JAR" "https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || \
+    wget -O "$GRADLE_WRAPPER_JAR" "https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar" 2>/dev/null
+fi
+exec java -jar "$GRADLE_WRAPPER_JAR" "$@"

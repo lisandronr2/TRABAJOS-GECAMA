@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instalar GECAMA · Guía</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#f0f4f8;color:#1a1a18;font-size:15px;min-height:100vh}
+.hero{background:#185FA5;color:#fff;padding:36px 24px 32px;text-align:center}
+.hero-icon{font-size:56px;margin-bottom:12px}
+.hero h1{font-size:24px;font-weight:800;margin-bottom:6px}
+.hero p{font-size:14px;opacity:.85;max-width:400px;margin:0 auto}
+.tabs{display:flex;gap:0;background:#0c447c;justify-content:center;padding:0 24px}
+.tab{flex:1;max-width:200px;padding:14px 20px;font-size:14px;font-weight:700;color:rgba(255,255,255,.65);border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;transition:.2s}
+.tab.active{color:#fff;border-bottom-color:#4ade80}
+.content{display:none;max-width:560px;margin:0 auto;padding:24px 20px}
+.content.active{display:block}
+.step{display:flex;gap:16px;margin-bottom:20px;align-items:flex-start}
+.step-num{width:36px;height:36px;border-radius:50%;background:#185FA5;color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-body h3{font-size:15px;font-weight:700;margin-bottom:4px;color:#0c447c}
+.step-body p{font-size:13px;color:#444;line-height:1.6}
+.step-body code{background:#e8f0fe;color:#185FA5;padding:2px 7px;border-radius:4px;font-size:12px;font-weight:700}
+.img-placeholder{background:#e8edf4;border:2px dashed #b0c4de;border-radius:10px;padding:20px;text-align:center;font-size:12px;color:#666;margin-top:8px;line-height:1.6}
+.img-placeholder .em{font-size:28px;display:block;margin-bottom:6px}
+.note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:12.5px;color:#78350f;margin-bottom:20px;line-height:1.5}
+.note strong{color:#92400e}
+.badge{display:inline-block;background:#185FA5;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;vertical-align:middle}
+.divider{border:none;border-top:1px solid #dde3ec;margin:20px 0}
+.url-box{background:#fff;border:2px solid #185FA5;border-radius:10px;padding:16px;text-align:center;margin:20px 0}
+.url-box p{font-size:12px;color:#555;margin-bottom:8px}
+.url-box strong{font-size:16px;color:#185FA5;word-break:break-all}
+.check{color:#16a34a;font-weight:700}
+.warn{color:#d97706;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-icon">⚡</div>
+  <h1>TRABAJOS GECAMA</h1>
+  <p>Guía de instalación en iPhone (iOS) y Android.<br>Sin App Store. Sin Play Store. Gratis.</p>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('ios')">🍎 &nbsp;iPhone / iPad</button>
+  <button class="tab" onclick="show('android')">🤖 &nbsp;Android</button>
+</div>
+
+<!-- iOS -->
+<div class="content active" id="ios">
+
+  <div class="note" style="margin-top:20px">
+    <strong>⚠️ Importante:</strong> En iPhone e iPad la instalación se hace desde <strong>Safari</strong>.
+    No funciona desde Chrome ni Firefox en iOS.
+  </div>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h3>Abre Safari y entra a la app</h3>
+      <p>En Safari, escribe o pega la dirección de la app:</p>
+      <div class="url-box">
+        <p>Dirección de la app</p>
+        <strong id="app-url-ios">Consulta con el administrador</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h3>Toca el botón Compartir</h3>
+      <p>En la barra inferior de Safari, toca el icono de <strong>compartir</strong> (cuadrado con flecha hacia arriba ↑).</p>
+      <div class="img-placeholder">
+        <span class="em">⬆️</span>
+        Botón compartir en la barra inferior de Safari<br>
+        <em>(icono de cuadrado con flecha)</em>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h3>Selecciona "Añadir a pantalla de inicio"</h3>
+      <p>En el menú que aparece, desplázate hacia abajo y toca <code>Añadir a pantalla de inicio</code>.</p>
+      <div class="img-placeholder">
+        <span class="em">📱</span>
+        Busca: <strong>"Añadir a pantalla de inicio"</strong><br>
+        con icono de un cuadrado y un símbolo +
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h3>Confirma el nombre y toca "Añadir"</h3>
+      <p>Aparecerá una pantalla con el nombre <strong>GECAMA</strong>. Toca <code>Añadir</code> en la esquina superior derecha.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <h3>¡Listo! Abre desde la pantalla de inicio</h3>
+      <p>El icono de <strong>GECAMA</strong> aparecerá en tu pantalla de inicio. Ábrelo como cualquier app — se abre sin barra de Safari, a pantalla completa.</p>
+      <p style="margin-top:8px"><span class="check">✓</span> Funciona sin conexión<br>
+      <span class="check">✓</span> Sincroniza al recuperar cobertura<br>
+      <span class="check">✓</span> No ocupa espacio en el almacenamiento</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="note">
+    <strong>Sin conexión en el campo:</strong> La app guarda los datos automáticamente en el dispositivo.
+    Cuando vuelvas a tener cobertura, sincroniza tocando <code>↻ Sync</code>.
+  </div>
+
+</div>
+
+<!-- Android -->
+<div class="content" id="android">
+
+  <div class="note" style="margin-top:20px">
+    <strong>💡 Funciona con Chrome, Edge o Samsung Internet.</strong>
+    Chrome es el recomendado y el que ofrece mejor experiencia offline.
+  </div>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h3>Abre Chrome y entra a la app</h3>
+      <p>En Chrome, escribe o pega la dirección:</p>
+      <div class="url-box">
+        <p>Dirección de la app</p>
+        <strong id="app-url-android">Consulta con el administrador</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h3>Chrome mostrará un banner de instalación</h3>
+      <p>Al cabo de unos segundos Chrome mostrará automáticamente un mensaje en la parte inferior: <code>Añadir GECAMA a pantalla de inicio</code>.<br>Toca <strong>Instalar</strong>.</p>
+      <div class="img-placeholder">
+        <span class="em">🔔</span>
+        Banner automático de Chrome:<br>
+        <strong>"Añadir GECAMA a la pantalla de inicio"</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2b</div>
+    <div class="step-body">
+      <h3>Si no aparece el banner: instala manualmente</h3>
+      <p>Toca los <strong>tres puntos</strong> (⋮) arriba a la derecha → <code>Añadir a pantalla de inicio</code> o <code>Instalar app</code>.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h3>Confirma la instalación</h3>
+      <p>Aparecerá un diálogo de confirmación. Toca <code>Instalar</code>.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h3>¡Listo! Abre desde el cajón de apps</h3>
+      <p>GECAMA aparece en el cajón de aplicaciones y en la pantalla de inicio como cualquier app nativa.</p>
+      <p style="margin-top:8px">
+        <span class="check">✓</span> Sincronización automática al recuperar cobertura<br>
+        <span class="check">✓</span> Funciona sin internet (datos en caché)<br>
+        <span class="check">✓</span> Se actualiza automáticamente cuando hay nueva versión
+      </p>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="note">
+    <strong>Sin conexión en el campo:</strong> Android sincroniza automáticamente en segundo plano
+    al recuperar señal, sin que tengas que abrir la app. Si la tienes abierta verás el aviso
+    <em>"Conexión restaurada — sincronizando…"</em>
+  </div>
+
+</div>
+
+<script>
+function show(tab) {
+  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Auto-detect platform
+const ua = navigator.userAgent;
+if (/android/i.test(ua)) show(null, 'android');
+
+// Fill in the current URL if served from a real host
+const url = location.href.replace('instalar.html','').replace('instalar.html','');
+if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  const appUrl = url + 'index.html';
+  document.getElementById('app-url-ios').textContent = appUrl;
+  document.getElementById('app-url-android').textContent = appUrl;
+}
+
+// Auto-switch tab on Android
+if (/android/i.test(navigator.userAgent)) {
+  document.querySelectorAll('.tab')[1].click();
+}
+</script>
+</body>
+</html>

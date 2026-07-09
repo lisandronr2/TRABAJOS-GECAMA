@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#185FA5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GECAMA">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>TRABAJOS GECAMA</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#185FA5;--blue-dark:#0C447C;--blue-light:#EFF6FF;
+  --surface:#f4f4f0;--card:#fff;--border:#e0ddd6;--border-strong:#ccc;
+  --text:#1a1a18;--text-2:#555;--text-3:#888;--text-4:#bbb;
+  --green:#1b7a4a;--amber:#b45309;--red:#b91c1c;
+  --highlight:#FFF8E1;--highlight2:#FFF3CD;
+  --radius:8px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--surface);color:var(--text);font-size:13px;display:flex;flex-direction:column}
+
+/* BANNERS */
+.banner{padding:8px 16px;display:none;align-items:center;gap:10px;font-size:12px;flex-shrink:0}
+.banner.show{display:flex}
+#b-update{background:#1b4332;color:#fff;justify-content:space-between}
+#b-offline{background:#7c3aed;color:#fff}
+#b-error{background:#7f1d1d;color:#fff}
+.btn-banner{padding:4px 12px;background:#4ade80;color:#1a1a18;border:none;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-banner.err{background:#fca5a5}
+
+/* HEADER */
+.header{background:var(--blue);color:#fff;padding:calc(12px + var(--safe-top)) 20px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:36px;height:36px;background:rgba(255,255,255,.2);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.logo-text{font-size:17px;font-weight:700;letter-spacing:.2px}
+.logo-sub{font-size:10px;opacity:.75;margin-top:1px}
+.hactions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.btn-h{padding:6px 12px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s}
+.btn-h:hover{background:rgba(255,255,255,.25)}
+.btn-h:disabled{opacity:.4;cursor:not-allowed}
+.sdot{width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;transition:background .3s}
+.sdot.spin{background:#facc15;animation:pulse 1s infinite}
+.sdot.err{background:#f87171}
+.sdot.off{background:#94a3b8}
+.sbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;opacity:.85}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* CONTROLS */
+.controls{background:var(--card);border-bottom:1px solid var(--border);padding:12px 16px;flex-shrink:0;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ctrl{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ctrl label{font-size:10px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.ctrl select{height:34px;padding:0 28px 0 10px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 10px center;color:var(--text);font-size:13px;min-width:155px;max-width:270px;cursor:pointer;appearance:none}
+.ctrl select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px rgba(24,95,165,.15)}
+.ctrl select:disabled{opacity:.45;cursor:not-allowed}
+.btn-reset{height:34px;padding:0 12px;border:1px solid var(--border-strong);border-radius:var(--radius);background:transparent;color:var(--text-3);font-size:12px;cursor:pointer;white-space:nowrap}
+.btn-reset:hover{background:var(--surface);color:var(--text)}
+
+/* INFO / STATS */
+.info-bar{background:var(--blue-light);border-left:3px solid var(--blue);padding:8px 16px;font-size:12px;color:var(--blue);display:none;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.info-bar.show{display:flex}
+.itag{background:var(--blue);color:#fff;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600}
+.stats-row{display:none;gap:8px;padding:10px 16px;flex-shrink:0;background:var(--card);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.stats-row.show{display:flex}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:9px 14px;min-width:110px}
+.stat-label{font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:3px}
+.stat-value{font-size:20px;font-weight:700;color:var(--blue);line-height:1}
+.stat-unit{font-size:10px;color:var(--text-4);margin-left:2px}
+
+/* RESULTS */
+.rwrap{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.rhead{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:6px}
+.rtitle{font-size:13px;font-weight:700;color:var(--text)}
+.rcount{font-size:11px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);padding:2px 10px;border-radius:99px}
+.twrap{flex:1;overflow:auto;border-top:1px solid var(--border)}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead{position:sticky;top:0;z-index:5}
+thead tr{background:#f0ede6}
+th{padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--text-2);border-bottom:1px solid var(--border-strong);white-space:nowrap;cursor:pointer;user-select:none;border-right:1px solid var(--border)}
+th:last-child{border-right:none}
+th:hover{background:#e8e5de}
+th .si{font-size:10px;color:var(--text-4);margin-left:3px}
+th.sorted{color:var(--blue)}
+th.chs{background:#FFF8D6}
+td{padding:7px 12px;border-bottom:1px solid var(--border);border-right:1px solid #f0ede6;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+td:last-child{border-right:none}
+tr:hover td{background:#fafaf5}
+td.hl{background:var(--highlight);font-weight:600}
+tr:hover td.hl{background:var(--highlight2)}
+tr:last-child td{border-bottom:none}
+.ec{color:var(--text-4);font-style:italic}
+
+/* STATES */
+.state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center;color:var(--text-3);flex:1}
+.state .icon{font-size:42px;opacity:.4}
+.state h3{font-size:15px;color:var(--text-2)}
+.state p{font-size:12px;max-width:320px;line-height:1.6}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOAST */
+.toast{position:fixed;bottom:calc(20px + var(--safe-bot));left:50%;transform:translateX(-50%) translateY(80px);background:#1a1a18;color:#fff;padding:10px 18px;border-radius:var(--radius);font-size:12px;font-weight:500;z-index:1000;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.ok{background:#1b7a4a}
+.toast.warn{background:#b45309}
+.toast.err{background:#b91c1c}
+
+/* FOOTER */
+.foot{font-size:10px;opacity:.6;text-align:right;padding:4px 16px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+
+/* PRINT */
+@media print{
+  .header{background:var(--blue)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .controls,.info-bar,.hactions,.btn-reset,#b-update,#b-offline,#b-error,.toast,.foot{display:none!important}
+  html,body{height:auto;overflow:visible}
+  .rwrap{overflow:visible}
+  .twrap{overflow:visible;border:none}
+  thead{position:static}
+  tr{page-break-inside:avoid}
+}
+@media(max-width:600px){
+  .logo-sub{display:none}
+  .ctrl select{min-width:130px;font-size:12px}
+  .stat-value{font-size:17px}
+}
+</style>
+</head>
+<body>
+
+<div class="banner" id="b-update">
+  🔄 Nueva versión disponible
+  <button class="btn-banner" onclick="doUpdate()">Actualizar</button>
+</div>
+<div class="banner" id="b-offline">
+  📴 <b>Sin conexión</b> — Datos locales activos. Se sincronizará al recuperar cobertura.
+</div>
+<div class="banner" id="b-error">
+  ⚠️ <span id="b-error-msg"></span>
+  <button class="btn-banner err" onclick="showHelp()">Ver ayuda</button>
+</div>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-text">TRABAJOS GECAMA</div>
+      <div class="logo-sub">Cableado CCTV &amp; SSAA · Control Diario</div>
+    </div>
+  </div>
+  <div class="hactions">
+    <div class="sbadge"><div class="sdot" id="sdot"></div><span id="slbl">Iniciando…</span></div>
+    <button class="btn-h" id="btn-sync" onclick="syncNow(true)">↻ Sync</button>
+    <button class="btn-h" onclick="window.print()">🖨 PDF</button>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="ctrl">
+    <label>1 · Hoja</label>
+    <select id="sel-hoja" onchange="onHoja()">
+      <option value="">— Cargando… —</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <label>2 · Columna</label>
+    <select id="sel-col" onchange="onCol()" disabled>
+      <option value="">— Elige hoja —</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <label>3 · Valor</label>
+    <select id="sel-val" onchange="onVal()" disabled>
+      <option value="">— Elige columna —</option>
+    </select>
+  </div>
+  <button class="btn-reset" id="btn-reset" onclick="resetAll()" style="display:none">✕ Limpiar</button>
+</div>
+
+<div class="info-bar" id="info-bar"></div>
+<div class="stats-row" id="stats-row"></div>
+<div class="rwrap" id="rwrap">
+  <div class="state" id="init-state">
+    <div class="spinner"></div>
+    <h3>Conectando con Google Drive…</h3>
+    <p>Descargando datos. Si no hay conexión, se usarán los datos guardados localmente.</p>
+  </div>
+</div>
+<div class="foot" id="foot"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONFIG — sólo cambia SHEET_ID si mueves el spreadsheet
+// ═══════════════════════════════════════════════════════════════
+const SHEET_ID   = '1guHu0lK-5aYV3GEzfy4KXlNqrGM9nSvjv3AepSFVI2s';
+const SYNC_MS    = 5 * 60 * 1000;   // sync cada 5 min
+const DB_NAME    = 'GECAMA_v3';
+const ST_DATA    = 'data';
+const ST_META    = 'meta';
+
+// ═══════════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════════
+let db          = null;
+let allData     = {};          // { sheetName: { h:[], r:[] } }
+let knownSheets = [];
+let newSheets   = new Set();
+let curSheet    = '';
+let curCol      = -1;
+let curVal      = '';
+let sortSt      = { col:-1, asc:true };
+let syncing     = false;
+let syncTimer   = null;
+let pendingSW   = null;
+let toastTmr    = null;
+
+// ═══════════════════════════════════════════════════════════════
+// INDEXEDDB
+// ═══════════════════════════════════════════════════════════════
+function openDB(){
+  return new Promise((ok,fail)=>{
+    const r=indexedDB.open(DB_NAME,1);
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains(ST_DATA))d.createObjectStore(ST_DATA);
+      if(!d.objectStoreNames.contains(ST_META))d.createObjectStore(ST_META);
+    };
+    r.onsuccess=e=>ok(e.target.result);
+    r.onerror=e=>fail(e.target.error);
+  });
+}
+function dbGet(store,key){
+  return new Promise((ok,fail)=>{
+    const tx=db.transaction(store,'readonly');
+    const r=tx.objectStore(store).get(key);
+    r.onsuccess=()=>ok(r.result);
+    r.onerror=()=>fail(r.error);
+  });
+}
+function dbPut(store,key,val){
+  return new Promise((ok,fail)=>{
+    const tx=db.transaction(store,'readwrite');
+    const r=tx.objectStore(store).put(val,key);
+    r.onsuccess=()=>ok();
+    r.onerror=()=>fail(r.error);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CSV PARSER  — maneja comillas, comas y CRLF
+// ═══════════════════════════════════════════════════════════════
+function parseCSV(txt){
+  const rows=[];let row=[],f='',inQ=false;
+  for(let i=0;i<txt.length;i++){
+    const c=txt[i];
+    if(inQ){if(c==='"'){if(txt[i+1]==='"'){f+='"';i++;}else inQ=false;}else f+=c;}
+    else if(c==='"'){inQ=true;}
+    else if(c===','){row.push(f);f='';}
+    else if(c==='\n'||(c==='\r'&&txt[i+1]==='\n')){
+      if(c==='\r')i++;row.push(f);f='';
+      if(row.length)rows.push(row);row=[];
+    }else f+=c;
+  }
+  if(f||row.length){row.push(f);if(row.length)rows.push(row);}
+  return rows;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FETCH HOJA INDIVIDUAL (CSV público de gviz)
+// ═══════════════════════════════════════════════════════════════
+async function fetchSheet(name){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+  const r=await fetch(url,{cache:'no-store'});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const txt=await r.text();
+  if(txt.trim().startsWith('<!'))throw new Error('El Sheet no es público o el nombre de hoja no existe');
+  const rows=parseCSV(txt);
+  if(!rows.length)return{h:[],r:[]};
+  return{h:rows[0],r:rows.slice(1).filter(row=>row.some(c=>c.trim()!==''))};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETECTAR HOJAS DESDE HTML DE EXPORTACIÓN
+// ═══════════════════════════════════════════════════════════════
+async function fetchSheetNames(){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/htmlview`;
+  const r=await fetch(url,{cache:'no-store'});
+  if(!r.ok)throw new Error(`HTTP ${r.status} al leer metadatos del sheet`);
+  const html=await r.text();
+  // Varios patrones de parseo del HTML de Google
+  let names=[];
+  // Patrón 1: aria-label en los tabs
+  const m1=[...html.matchAll(/aria-label="([^"]+)"\s+[^>]*id="[^"]*sheet[^"]*"/g)];
+  if(m1.length)names=m1.map(m=>m[1].trim());
+  // Patrón 2: data del selector de hojas
+  if(!names.length){
+    const m2=[...html.matchAll(/"sheetnames":\[([^\]]+)\]/g)];
+    if(m2.length)names=JSON.parse('['+m2[0][1]+']');
+  }
+  // Patrón 3: botones de hoja
+  if(!names.length){
+    const m3=[...html.matchAll(/<li[^>]+>\s*<a[^>]*>([^<]+)<\/a>/g)];
+    if(m3.length)names=m3.map(m=>m[1].trim()).filter(n=>n&&!n.startsWith('<'));
+  }
+  // Patrón 4: extraer de los IDs de hoja
+  if(!names.length){
+    const m4=[...html.matchAll(/id="sheet-button-(\d+)"[^>]*title="([^"]+)"/g)];
+    if(m4.length)names=m4.map(m=>m[2].trim());
+  }
+  if(!names.length)throw new Error('No se pudieron detectar hojas. Verifica que el Sheet sea público (Compartir → Cualquiera con el enlace → Lector).');
+  return[...new Set(names)];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SINCRONIZACIÓN PRINCIPAL
+// ═══════════════════════════════════════════════════════════════
+async function syncNow(manual=false){
+  if(syncing){if(manual)toast('⏳ Sync en curso…','warn');return;}
+  if(!navigator.onLine){if(manual)toast('📴 Sin conexión. Datos locales activos.','warn');return;}
+  syncing=true;
+  setSyncState('spin','Sincronizando…');
+  document.getElementById('btn-sync').disabled=true;
+  hideBanner('b-error');
+  try{
+    // 1. Lista de hojas
+    let names;
+    try{names=await fetchSheetNames();}
+    catch(e){
+      console.warn('fetchSheetNames falló:',e);
+      // Si tenemos hojas conocidas, seguimos con ellas
+      if(knownSheets.length)names=knownSheets;
+      else throw e;
+    }
+    // 2. Detectar nuevas
+    const prevSet=new Set(knownSheets);
+    newSheets=new Set(names.filter(n=>knownSheets.length&&!prevSet.has(n)));
+    // 3. Descargar cada hoja
+    const nd={};const errs=[];
+    for(const n of names){
+      try{nd[n]=await fetchSheet(n);}
+      catch(e){errs.push(n);if(allData[n])nd[n]=allData[n];console.warn(`Hoja "${n}":`,e);}
+    }
+    // 4. Guardar
+    allData=nd;knownSheets=names;
+    const ts=new Date().toISOString();
+    if(db){
+      await dbPut(ST_DATA,'all',allData);
+      await dbPut(ST_META,'sheets',knownSheets);
+      await dbPut(ST_META,'ts',ts);
+    }
+    // 5. UI
+    buildSheetSelector();
+    setFoot(ts,false);
+    if(curSheet&&!allData[curSheet])resetAll();
+    else if(curSheet){renderTable(filtered());refreshValSel();}
+    const nn=newSheets.size;
+    if(errs.length&&Object.keys(nd).length){
+      setSyncState('warn',`Sync parcial (${errs.length} error)`);
+      if(manual)toast(`⚠️ ${errs.length} hoja(s) no se actualizaron`,'warn');
+    }else{
+      setSyncState('ok','Sincronizado');
+      if(manual)toast(`✅ Sync OK${nn?' · '+nn+' hoja'+(nn>1?'s':'s')+' nueva'+(nn>1?'s':''):''}`, 'ok');
+      else if(nn)toast(`🆕 ${nn} hoja${nn>1?'s':'s'} nueva${nn>1?'s':''} detectada${nn>1?'s':''}`, 'ok');
+    }
+  }catch(e){
+    console.error('Sync error:',e);
+    setSyncState('err','Error de sync');
+    showBanner('b-error',e.message);
+    if(manual)toast('❌ '+e.message,'err');
+    if(!Object.keys(allData).length)showStateError(e.message);
+  }finally{
+    syncing=false;
+    document.getElementById('btn-sync').disabled=false;
+    resetSyncTimer();
+  }
+}
+
+function resetSyncTimer(){
+  if(syncTimer)clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>syncNow(false),SYNC_MS);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CACHÉ LOCAL
+// ═══════════════════════════════════════════════════════════════
+async function loadCache(){
+  if(!db)return false;
+  try{
+    const d=await dbGet(ST_DATA,'all');
+    const s=await dbGet(ST_META,'sheets');
+    const ts=await dbGet(ST_META,'ts');
+    if(d&&Object.keys(d).length){
+      allData=d;knownSheets=s||Object.keys(d);
+      buildSheetSelector();setFoot(ts,true);return true;
+    }
+  }catch(e){console.warn('loadCache:',e);}
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SELECTORES
+// ═══════════════════════════════════════════════════════════════
+function buildSheetSelector(){
+  const sel=document.getElementById('sel-hoja');
+  const prev=sel.value;
+  sel.innerHTML='<option value="">— Selecciona hoja —</option>';
+  Object.keys(allData).sort((a,b)=>a.localeCompare(b,'es')).forEach(n=>{
+    const o=document.createElement('option');
+    o.value=n;o.textContent=n+(newSheets.has(n)?' 🆕':'');
+    sel.appendChild(o);
+  });
+  if(prev&&allData[prev])sel.value=prev;
+  if(!sel.value&&Object.keys(allData).length)showWelcome();
+}
+
+function onHoja(){
+  curSheet=document.getElementById('sel-hoja').value;
+  curCol=-1;curVal='';sortSt={col:-1,asc:true};
+  const sc=document.getElementById('sel-col');
+  const sv=document.getElementById('sel-val');
+  sc.disabled=true;sv.disabled=true;
+  sc.innerHTML='<option value="">— Elige columna —</option>';
+  sv.innerHTML='<option value="">— Elige columna —</option>';
+  document.getElementById('btn-reset').style.display='none';
+  if(!curSheet||!allData[curSheet]){showWelcome();return;}
+  allData[curSheet].h.forEach((h,i)=>{
+    const o=document.createElement('option');o.value=i;o.textContent=h||`Col ${i+1}`;sc.appendChild(o);
+  });
+  sc.disabled=false;
+  updateInfoBar();
+  renderTable(allData[curSheet].r,allData[curSheet].h);
+}
+
+function onCol(){
+  curCol=parseInt(document.getElementById('sel-col').value);
+  if(isNaN(curCol))return;
+  curVal='';
+  const sv=document.getElementById('sel-val');
+  sv.innerHTML='<option value="">— Selecciona valor —</option>';
+  const rows=allData[curSheet]?.r||[];
+  [...new Set(rows.map(r=>r[curCol]??'').filter(v=>v!==''))].sort().forEach(v=>{
+    const o=document.createElement('option');o.value=v;o.textContent=v;sv.appendChild(o);
+  });
+  sv.disabled=false;
+  updateInfoBar();
+  renderTable(filtered());
+}
+
+function onVal(){
+  curVal=document.getElementById('sel-val').value;
+  document.getElementById('btn-reset').style.display=curVal?'':'none';
+  renderTable(filtered());
+  updateInfoBar();
+  updateStats(filtered());
+}
+
+function filtered(){
+  if(!curSheet||!allData[curSheet])return[];
+  const r=allData[curSheet].r;
+  if(curCol<0||!curVal)return r;
+  return r.filter(row=>(row[curCol]??'')===curVal);
+}
+
+function resetAll(){
+  curCol=-1;curVal='';sortSt={col:-1,asc:true};
+  document.getElementById('sel-col').value='';
+  document.getElementById('sel-val').innerHTML='<option value="">— Elige columna —</option>';
+  document.getElementById('sel-val').disabled=true;
+  document.getElementById('btn-reset').style.display='none';
+  document.getElementById('info-bar').classList.remove('show');
+  document.getElementById('stats-row').classList.remove('show');
+  if(curSheet&&allData[curSheet])renderTable(allData[curSheet].r,allData[curSheet].h);
+}
+
+function refreshValSel(){
+  if(curCol<0)return;
+  const sv=document.getElementById('sel-val');
+  const prev=sv.value;
+  const vals=[...new Set((allData[curSheet]?.r||[]).map(r=>r[curCol]??'').filter(v=>v!==''))].sort();
+  sv.innerHTML='<option value="">— Selecciona valor —</option>';
+  vals.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sv.appendChild(o);});
+  if(prev)sv.value=prev;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER TABLA
+// ═══════════════════════════════════════════════════════════════
+function renderTable(rows,headers){
+  const wrap=document.getElementById('rwrap');
+  const h=headers||(curSheet?allData[curSheet]?.h:[])||[];
+  if(!curSheet||!h.length){showWelcome();return;}
+  if(!rows.length&&curVal){
+    wrap.innerHTML=`<div class="state"><div class="icon">🔍</div><h3>Sin resultados</h3><p>No hay registros con <strong>${esc(h[curCol]||'')}</strong> = <strong>${esc(curVal)}</strong></p></div>`;
+    setCount(0);return;
+  }
+  let sr=[...rows];
+  if(sortSt.col>=0){
+    sr.sort((a,b)=>{
+      const va=a[sortSt.col]??'',vb=b[sortSt.col]??'';
+      const na=parseFloat(va),nb=parseFloat(vb);
+      const c=(!isNaN(na)&&!isNaN(nb))?na-nb:va.localeCompare(vb,'es');
+      return sortSt.asc?c:-c;
+    });
+  }
+  let html=`<div class="rhead"><span class="rtitle">${esc(curSheet)}</span><span class="rcount" id="rcount">${sr.length} registros</span></div><div class="twrap"><table><thead><tr>`;
+  h.forEach((col,i)=>{
+    const s=sortSt.col===i;
+    const arr=s?(sortSt.asc?'▲':'▼'):'⇅';
+    const hl=(i===curCol&&curVal)?' chs':'';
+    html+=`<th class="${s?'sorted':''}${hl}" onclick="sortBy(${i})">${esc(col||'')}<span class="si">${arr}</span></th>`;
+  });
+  html+=`</tr></thead><tbody>`;
+  sr.forEach(row=>{
+    html+='<tr>';
+    h.forEach((_,i)=>{
+      const v=row[i]??'';
+      const isH=(i===curCol&&curVal&&v===curVal);
+      html+=`<td class="${isH?'hl':''}">${v!==''?esc(String(v)):'<span class="ec">—</span>'}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  wrap.innerHTML=html;
+  setCount(sr.length);
+}
+
+function sortBy(col){
+  if(sortSt.col===col)sortSt.asc=!sortSt.asc;
+  else sortSt={col,asc:true};
+  renderTable(filtered());
+}
+function setCount(n){const el=document.getElementById('rcount');if(el)el.textContent=`${n} registros`;}
+
+// ═══════════════════════════════════════════════════════════════
+// INFO BAR & STATS
+// ═══════════════════════════════════════════════════════════════
+function updateInfoBar(){
+  const bar=document.getElementById('info-bar');
+  if(!curSheet){bar.classList.remove('show');return;}
+  const h=allData[curSheet]?.h||[];
+  let html=`<span class="itag">${esc(curSheet)}</span>`;
+  if(curCol>=0&&h[curCol])html+=` Buscando en <strong>${esc(h[curCol])}</strong>`+(curVal?` → <strong>${esc(curVal)}</strong>`:'');
+  bar.innerHTML=html;bar.classList.add('show');
+}
+
+function updateStats(rows){
+  const sr=document.getElementById('stats-row');
+  if(!curVal||curCol<0||!rows.length){sr.classList.remove('show');return;}
+  const h=allData[curSheet]?.h||[];
+  const numCols=[];
+  h.forEach((name,i)=>{
+    if(i===curCol)return;
+    const nums=rows.map(r=>parseFloat(r[i])).filter(n=>!isNaN(n));
+    if(nums.length>rows.length*.4)numCols.push({name,nums});
+  });
+  if(!numCols.length){sr.classList.remove('show');return;}
+  sr.innerHTML=numCols.slice(0,5).map(({name,nums})=>{
+    const s=nums.reduce((a,b)=>a+b,0);
+    return`<div class="stat"><div class="stat-label">${esc(name)}</div><div class="stat-value">${s%1===0?s:s.toFixed(1)}<span class="stat-unit">total</span></div></div>`;
+  }).join('')+`<div class="stat"><div class="stat-label">Registros</div><div class="stat-value">${rows.length}</div></div>`;
+  sr.classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ESTADO VISUAL
+// ═══════════════════════════════════════════════════════════════
+function showWelcome(){
+  const n=Object.keys(allData).length;
+  document.getElementById('rwrap').innerHTML=`<div class="state"><div class="icon">📋</div><h3>TRABAJOS GECAMA</h3><p>Selecciona una <strong>hoja</strong> (${n} disponibles), luego la <strong>columna</strong> y el <strong>valor</strong> a consultar.<br>Sincronización automática con Google Drive cada 5 min.</p></div>`;
+  document.getElementById('stats-row').classList.remove('show');
+  document.getElementById('info-bar').classList.remove('show');
+}
+function showStateError(msg){
+  document.getElementById('rwrap').innerHTML=`<div class="state"><div class="icon">❌</div><h3>No se pudo cargar</h3><p>${esc(msg)}<br><br><strong>Asegúrate de que el Google Sheet está compartido públicamente:</strong><br>Compartir → Cualquiera con el enlace → Lector</p></div>`;
+}
+function showHelp(){
+  document.getElementById('rwrap').innerHTML=`<div class="state"><div class="icon">📋</div><h3>Configuración necesaria</h3><p>Para que la sincronización funcione:<br><br>1. Abre el Google Sheet en Drive<br>2. Clic en <strong>Compartir</strong><br>3. "Acceso general" → <strong>Cualquiera con el enlace</strong><br>4. Rol: <strong>Lector</strong><br><br>Luego pulsa ↻ Sync arriba a la derecha.</p></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SYNC STATE DOT
+// ═══════════════════════════════════════════════════════════════
+function setSyncState(state,lbl){
+  const d=document.getElementById('sdot');
+  d.className='sdot';
+  if(state==='spin')d.classList.add('spin');
+  else if(state==='err'||state==='warn')d.classList.add('err');
+  else if(state==='off')d.classList.add('off');
+  document.getElementById('slbl').textContent=lbl;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BANNERS
+// ═══════════════════════════════════════════════════════════════
+function showBanner(id,msg){
+  const el=document.getElementById(id);
+  el.classList.add('show');
+  if(msg){const m=document.getElementById('b-error-msg');if(m)m.textContent=msg;}
+}
+function hideBanner(id){document.getElementById(id).classList.remove('show');}
+
+// ═══════════════════════════════════════════════════════════════
+// FOOTER TIMESTAMP
+// ═══════════════════════════════════════════════════════════════
+function setFoot(ts,cached){
+  const el=document.getElementById('foot');
+  if(!ts){el.textContent='';return;}
+  try{
+    const d=new Date(ts);
+    const f=d.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    el.textContent=(cached?'📦 Datos en caché · ':'☁️ Última sync: ')+f;
+  }catch{el.textContent='';}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast'+(type?' '+type:'');
+  void t.offsetHeight;t.classList.add('show');
+  if(toastTmr)clearTimeout(toastTmr);
+  toastTmr=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ONLINE / OFFLINE
+// ═══════════════════════════════════════════════════════════════
+window.addEventListener('online',()=>{
+  hideBanner('b-offline');setSyncState('spin','Reconectando…');
+  toast('📶 Conexión restaurada — sincronizando…');syncNow(false);
+});
+window.addEventListener('offline',()=>{
+  showBanner('b-offline');setSyncState('off','Sin conexión');
+  if(syncTimer)clearTimeout(syncTimer);
+});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&navigator.onLine){
+    if(db)dbGet(ST_META,'ts').then(ts=>{
+      if(!ts||(Date.now()-new Date(ts).getTime())>2*60*1000)syncNow(false);
+    }).catch(()=>syncNow(false));
+    else syncNow(false);
+  }
+});
+// Escuchar mensaje del SW para sync en background
+navigator.serviceWorker?.addEventListener('message',e=>{
+  if(e.data?.type==='BACKGROUND_SYNC')syncNow(false);
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SERVICE WORKER UPDATE
+// ═══════════════════════════════════════════════════════════════
+function doUpdate(){
+  if(pendingSW)pendingSW.postMessage({type:'SKIP_WAITING'});
+  window.location.reload();
+}
+async function registerSW(){
+  if(!('serviceWorker' in navigator))return;
+  try{
+    const reg=await navigator.serviceWorker.register('sw.js');
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing;
+      nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed'&&navigator.serviceWorker.controller){
+          pendingSW=nw;showBanner('b-update');
+        }
+      });
+    });
+    navigator.serviceWorker.addEventListener('controllerchange',()=>window.location.reload());
+  }catch(e){console.warn('SW:',e);}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ═══════════════════════════════════════════════════════════════
+// ARRANQUE
+// ═══════════════════════════════════════════════════════════════
+async function init(){
+  // 1. DB
+  try{db=await openDB();}catch(e){console.warn('IndexedDB:',e);}
+  // 2. SW
+  registerSW();
+  // 3. Caché → mostrar datos inmediatamente
+  const hasCached=await loadCache();
+  if(hasCached){
+    setSyncState('ok','Datos locales');
+    showWelcome();
+  }
+  // 4. Sync con Drive
+  if(!hasCached){
+    document.getElementById('init-state').innerHTML='<div class="spinner"></div><h3>Conectando con Google Drive…</h3><p>Descargando datos. Si no hay conexión, se usarán los datos guardados localmente.</p>';
+  }
+  if(navigator.onLine)await syncNow(false);
+  else{
+    showBanner('b-offline');setSyncState('off','Sin conexión');
+    if(!hasCached)showStateError('Sin conexión y sin datos en caché. Conéctate para la primera carga.');
+  }
+  // 5. Timer periódico
+  resetSyncTimer();
+}
+init().catch(console.error);
+</script>
+</body>
+</html>
