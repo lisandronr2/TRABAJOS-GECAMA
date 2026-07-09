@@ -391,19 +391,19 @@ async function fetchSheet(name){
 }
 
 // ═══════════════════════════════════════════════
-// DESCUBRIR HOJAS VÍA GID CON DEDUPLICACIÓN POR CONTENIDO
-// — Google redirige GIDs inválidos a la hoja por defecto,
-//   así que usamos el fingerprint de las primeras filas
-//   para detectar duplicados y no contar la misma hoja dos veces.
+// DESCUBRIR HOJAS — GIDs reales del spreadsheet
 // ═══════════════════════════════════════════════
 async function fetchSheetNames(){
-  const PROBE_GIDS = ['745015095','0','1','2','3','4','5','6','7','8','9','10',
-                      '11','12','13','14','15','16','17','18','19','20'];
-  const found = [], seenGids = new Set(), seenFP = new Set();
+  const REAL_GIDS = [
+    '745015095','1547322164','1920870819','1101226227','407460712',
+    '1216856910','1471015244','1340114912','430614740','964532040',
+    '742606042','198782175','1498469130','1832898941','2006798926'
+  ];
 
-  for(const gid of PROBE_GIDS){
-    if(seenGids.has(gid)) continue;
-    seenGids.add(gid);
+  const found = [];
+  const labelCount = {};
+
+  for(const gid of REAL_GIDS){
     try{
       const r = await fetch(
         `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
@@ -413,25 +413,25 @@ async function fetchSheetNames(){
       const t = await r.text();
       if(!t || t.trim().startsWith('<!')) continue;
 
-      // Fingerprint = primeras 2 filas (detecta redirecciones al default sheet)
-      const fp = t.split('\n').slice(0,2).join('|');
-      if(seenFP.has(fp)) continue;
-      seenFP.add(fp);
+      // Etiqueta = primera celda no vacía de la primera fila
+      const firstRow = t.split('\n')[0];
+      const rawLabel = firstRow
+        .split(',')
+        .map(c => c.replace(/"/g,'').trim())
+        .find(c => c.length > 0) || 'Hoja';
 
-      // Nombre = primera celda no vacía de la primera fila que sea un encabezado real
-      const firstRow = t.split('\n')[0].split(',');
-      const label = firstRow
-        .map(c=>c.replace(/"/g,'').trim())
-        .find(c=>c.length>0) || ('Hoja_'+gid);
+      const base = rawLabel.slice(0, 45);
+      labelCount[base] = (labelCount[base] || 0) + 1;
+      const label = labelCount[base] > 1 ? `${base} (${labelCount[base]})` : base;
 
-      found.push({gid, label: label.slice(0,50)});
+      found.push({gid, label});
     }catch(e){ continue; }
   }
 
   if(!found.length) throw new Error('No se encontraron hojas. Verifica que el Sheet sea público (Compartir → Cualquiera con el enlace → Lector).');
 
-  window._GID_MAP = Object.fromEntries(found.map(x=>[x.label,x.gid]));
-  return found.map(x=>x.label);
+  window._GID_MAP = Object.fromEntries(found.map(x=>[x.label, x.gid]));
+  return found.map(x => x.label);
 }
 
 // ═══════════════════════════════════════════════
