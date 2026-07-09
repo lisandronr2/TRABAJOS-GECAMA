@@ -276,7 +276,10 @@ function parseCSV(txt){
 // FETCH HOJA INDIVIDUAL (CSV público de gviz)
 // ═══════════════════════════════════════════════════════════════
 async function fetchSheet(name){
-  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+  const gid=window._GECAMA_GID_MAP&&window._GECAMA_GID_MAP[name];
+  const url=gid
+    ?`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`
+    :`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
   const r=await fetch(url,{cache:'no-store'});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const txt=await r.text();
@@ -287,35 +290,30 @@ async function fetchSheet(name){
 }
 
 // ═══════════════════════════════════════════════════════════════
-// DETECTAR HOJAS DESDE HTML DE EXPORTACIÓN
+// DETECTAR HOJAS VÍA GID (evita CORS de /htmlview)
 // ═══════════════════════════════════════════════════════════════
 async function fetchSheetNames(){
-  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/htmlview`;
-  const r=await fetch(url,{cache:'no-store'});
-  if(!r.ok)throw new Error(`HTTP ${r.status} al leer metadatos del sheet`);
-  const html=await r.text();
-  // Varios patrones de parseo del HTML de Google
-  let names=[];
-  // Patrón 1: aria-label en los tabs
-  const m1=[...html.matchAll(/aria-label="([^"]+)"\s+[^>]*id="[^"]*sheet[^"]*"/g)];
-  if(m1.length)names=m1.map(m=>m[1].trim());
-  // Patrón 2: data del selector de hojas
-  if(!names.length){
-    const m2=[...html.matchAll(/"sheetnames":\[([^\]]+)\]/g)];
-    if(m2.length)names=JSON.parse('['+m2[0][1]+']');
+  const KNOWN_GIDS=['745015095','0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20'];
+  const found=[];
+  const seen=new Set();
+  for(const gid of KNOWN_GIDS){
+    if(seen.has(gid))continue;
+    seen.add(gid);
+    try{
+      const r=await fetch(
+        `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
+        {cache:'no-store'}
+      );
+      if(!r.ok)continue;
+      const t=await r.text();
+      if(!t||t.trim().startsWith('<!'))continue;
+      const firstName=t.split('\n')[0].split(',')[0].replace(/"/g,'').trim();
+      found.push({gid,label:firstName.slice(0,40)||'Hoja_'+gid});
+    }catch(e){continue;}
   }
-  // Patrón 3: botones de hoja
-  if(!names.length){
-    const m3=[...html.matchAll(/<li[^>]+>\s*<a[^>]*>([^<]+)<\/a>/g)];
-    if(m3.length)names=m3.map(m=>m[1].trim()).filter(n=>n&&!n.startsWith('<'));
-  }
-  // Patrón 4: extraer de los IDs de hoja
-  if(!names.length){
-    const m4=[...html.matchAll(/id="sheet-button-(\d+)"[^>]*title="([^"]+)"/g)];
-    if(m4.length)names=m4.map(m=>m[2].trim());
-  }
-  if(!names.length)throw new Error('No se pudieron detectar hojas. Verifica que el Sheet sea público (Compartir → Cualquiera con el enlace → Lector).');
-  return[...new Set(names)];
+  if(!found.length)throw new Error('No se encontraron hojas accesibles. Verifica que el Sheet sea público.');
+  window._GECAMA_GID_MAP=Object.fromEntries(found.map(x=>[x.label,x.gid]));
+  return found.map(x=>x.label);
 }
 
 // ═══════════════════════════════════════════════════════════════
