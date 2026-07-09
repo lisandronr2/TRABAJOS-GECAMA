@@ -391,19 +391,48 @@ async function fetchSheet(name){
 }
 
 // ═══════════════════════════════════════════════
-// DESCUBRIR HOJAS — GIDs reales del spreadsheet
+// MAPA GID → NOMBRE (estático, una hoja = un nombre)
 // ═══════════════════════════════════════════════
+const GID_NAMES = {
+  '745015095':  'Fibra óptica FO SM · Listado',
+  '1547322164': 'FTP / CAT6 · Listado',
+  '1920870819': 'Alimentación · Listado',
+  '1101226227': 'Comunicaciones · Listado',
+  '407460712':  'Tendido FO SM',
+  '1216856910': 'Fusiones por anillo',
+  '1471015244': 'Tendido FTP / CAT6',
+  '1340114912': 'Tendido Alimentación',
+  '430614740':  'Personal / Facturación',
+  '964532040':  null,
+  '742606042':  'Armarios SCADA',
+  '198782175':  'Fusiones por parcela',
+  '1498469130': 'Estado por CT',
+  '1832898941': 'Torpedo',
+  '2006798926': 'Resumen CTs',
+};
+
+// Columna de filtro por defecto según GID
+const SHEET_DEFAULT_FILTER = {
+  '745015095':  'ESTADO',
+  '1547322164': 'ESTADO',
+  '1920870819': 'ESTADO',
+  '1101226227': 'ESTADO',
+  '407460712':  'ANILLO',
+  '1216856910': 'ANILLO',
+  '1471015244': 'ANILLO',
+  '1340114912': 'ANILLO',
+  '198782175':  'PARCELA',
+  '1498469130': 'ESTADO',
+  '1832898941': 'ESTADO',
+  '2006798926': 'ESTADO',
+  '742606042':  null,
+  '430614740':  null,
+};
+
 async function fetchSheetNames(){
-  const REAL_GIDS = [
-    '745015095','1547322164','1920870819','1101226227','407460712',
-    '1216856910','1471015244','1340114912','430614740','964532040',
-    '742606042','198782175','1498469130','1832898941','2006798926'
-  ];
-
   const found = [];
-  const labelCount = {};
-
-  for(const gid of REAL_GIDS){
+  for(const [gid, name] of Object.entries(GID_NAMES)){
+    if(!name) continue;
     try{
       const r = await fetch(
         `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
@@ -412,24 +441,10 @@ async function fetchSheetNames(){
       if(!r.ok) continue;
       const t = await r.text();
       if(!t || t.trim().startsWith('<!')) continue;
-
-      // Etiqueta = primera celda no vacía de la primera fila
-      const firstRow = t.split('\n')[0];
-      const rawLabel = firstRow
-        .split(',')
-        .map(c => c.replace(/"/g,'').trim())
-        .find(c => c.length > 0) || 'Hoja';
-
-      const base = rawLabel.slice(0, 45);
-      labelCount[base] = (labelCount[base] || 0) + 1;
-      const label = labelCount[base] > 1 ? `${base} (${labelCount[base]})` : base;
-
-      found.push({gid, label});
+      found.push({gid, label: name});
     }catch(e){ continue; }
   }
-
   if(!found.length) throw new Error('No se encontraron hojas. Verifica que el Sheet sea público (Compartir → Cualquiera con el enlace → Lector).');
-
   window._GID_MAP = Object.fromEntries(found.map(x=>[x.label, x.gid]));
   return found.map(x => x.label);
 }
@@ -563,6 +578,8 @@ function onHoja(){
   sc.disabled=false;
   updateInfoBar();
   renderTable(allData[curSheet].r, h);
+  updateStats(allData[curSheet].r);
+  autoSelectFilterCol();
 }
 
 function onCol(){
@@ -604,8 +621,12 @@ function resetAll(){
   sv.disabled=true;
   document.getElementById('btn-rst').style.display='none';
   document.getElementById('info-bar').classList.remove('show');
-  document.getElementById('stats-row').classList.remove('show');
-  if(curSheet && allData[curSheet]) renderTable(allData[curSheet].r, allData[curSheet].h);
+  if(curSheet && allData[curSheet]){
+    renderTable(allData[curSheet].r, allData[curSheet].h);
+    updateStats(allData[curSheet].r);
+  } else {
+    document.getElementById('stats-row').classList.remove('show');
+  }
 }
 
 function refreshValSel(){
@@ -700,26 +721,52 @@ function updateInfoBar(){
 
 function updateStats(rows){
   const sr=document.getElementById('stats-row');
-  if(!curVal||curCol<0||!rows.length){sr.classList.remove('show');return;}
+  if(!rows||!rows.length){sr.classList.remove('show');return;}
   const h=allData[curSheet]?.h||[];
 
-  // Columnas numéricas
   const numCols=[];
   h.forEach((name,i)=>{
-    if(i===curCol)return;
+    if(curVal&&i===curCol) return;
     const nums=rows.map(r=>parseFloat(r[i])).filter(n=>!isNaN(n));
     if(nums.length>rows.length*.3) numCols.push({name,nums,i});
   });
 
-  let html=numCols.slice(0,4).map(({name,nums})=>{
+  const statsHtml=numCols.slice(0,5).map(({name,nums})=>{
     const s=nums.reduce((a,b)=>a+b,0);
     const fmt=s%1===0?s.toLocaleString('es-ES'):s.toFixed(1);
-    const unit=name.toLowerCase().includes('m)')?' m':'';
+    const lc=name.toLowerCase();
+    const unit=lc.includes('longitud')||lc.includes('(m)')||lc.includes(' m)')?' m':'';
     return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${fmt}<span class="stat-unit">${unit||'total'}</span></div></div>`;
   }).join('');
 
-  html+=`<div class="stat"><div class="stat-lbl">Registros</div><div class="stat-val">${rows.length}</div></div>`;
-  sr.innerHTML=html; sr.classList.add('show');
+  if(!statsHtml&&!rows.length){sr.classList.remove('show');return;}
+  sr.innerHTML=statsHtml+`<div class="stat"><div class="stat-lbl">Registros</div><div class="stat-val">${rows.length}</div></div>`;
+  sr.classList.add('show');
+}
+
+// Auto-selecciona la columna de filtro más relevante según estructura de la hoja
+function autoSelectFilterCol(){
+  if(!curSheet || !allData[curSheet]) return;
+  const gid = window._GID_MAP?.[curSheet];
+  const preferredColName = gid ? (SHEET_DEFAULT_FILTER[gid] ?? null) : null;
+  if(!preferredColName) return;
+
+  const h = allData[curSheet].h;
+  const idx = h.findIndex(c => c.trim().toUpperCase() === preferredColName.toUpperCase());
+  if(idx < 0) return;
+
+  const sc = document.getElementById('sel-col');
+  sc.value = String(idx);
+  curCol = idx;
+
+  const sv = document.getElementById('sel-val');
+  sv.innerHTML = '<option value="">— Selecciona valor —</option>';
+  const rows = allData[curSheet]?.r || [];
+  [...new Set(rows.map(r=>r[idx]??'').filter(v=>v!==''))].sort().forEach(v=>{
+    const o=document.createElement('option'); o.value=v; o.textContent=v; sv.appendChild(o);
+  });
+  sv.disabled = false;
+  updateInfoBar();
 }
 
 // ═══════════════════════════════════════════════
