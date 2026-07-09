@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════
-// SERVICE WORKER — GECAMA PWA v3
+// SERVICE WORKER — GECAMA PWA v4
 // ═══════════════════════════════════════════════════════════
-const SHELL_CACHE  = 'gecama-shell-v3';
-const SHEETS_CACHE = 'gecama-sheets-v3';
+const SHELL_CACHE  = 'gecama-shell-v4';
+const SHEETS_CACHE = 'gecama-sheets-v4';
 const SHELL_FILES  = ['./', './index.html', './manifest.json', './icon.svg'];
 
 // INSTALL — precargar shell
