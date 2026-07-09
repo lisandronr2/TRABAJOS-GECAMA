@@ -402,7 +402,6 @@ const GID_NAMES = {
   '1216856910': 'FUSIONES BESS',
   '1471015244': 'FTP BESS',
   '1340114912': 'ALIM.3X2,5 BESS',
-  '430614740':  'MONTAJE CAMARAS',
   '964532040':  null,
   '742606042':  'MONTAJE CTS',
   '198782175':  'CTS FUSIONADOS',
@@ -410,6 +409,9 @@ const GID_NAMES = {
   '1832898941': 'FUSIONES SSP-SS2',
   '2006798926': 'MONTAJE ARMARIOS CCTV',
 };
+
+// Hojas sin GID confirmado: se buscan por nombre exacto de pestaña
+const SHEETS_BY_NAME = ['MONTAJE CAMARAS'];
 
 // Columna de filtro por defecto según GID
 const SHEET_DEFAULT_FILTER = {
@@ -426,11 +428,17 @@ const SHEET_DEFAULT_FILTER = {
   '1832898941': 'ESTADO',
   '2006798926': 'ESTADO',
   '742606042':  null,
-  '430614740':  null,
+};
+
+// Filtro por defecto para hojas by-name
+const SHEET_DEFAULT_FILTER_BY_NAME = {
+  'MONTAJE CAMARAS': 'CT',
 };
 
 async function fetchSheetNames(){
   const found = [];
+
+  // 1. Hojas identificadas por GID
   for(const [gid, name] of Object.entries(GID_NAMES)){
     if(!name) continue;
     try{
@@ -444,6 +452,21 @@ async function fetchSheetNames(){
       found.push({gid, label: name});
     }catch(e){ continue; }
   }
+
+  // 2. Hojas identificadas por nombre exacto de pestaña
+  for(const name of SHEETS_BY_NAME){
+    try{
+      const r = await fetch(
+        `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`,
+        {cache:'no-store'}
+      );
+      if(!r.ok) continue;
+      const t = await r.text();
+      if(!t || t.trim().startsWith('<!')) continue;
+      found.push({gid: null, label: name});
+    }catch(e){ continue; }
+  }
+
   if(!found.length) throw new Error('No se encontraron hojas. Verifica que el Sheet sea público (Compartir → Cualquiera con el enlace → Lector).');
   window._GID_MAP = Object.fromEntries(found.map(x=>[x.label, x.gid]));
   return found.map(x => x.label);
@@ -748,7 +771,10 @@ function updateStats(rows){
 function autoSelectFilterCol(){
   if(!curSheet || !allData[curSheet]) return;
   const gid = window._GID_MAP?.[curSheet];
-  const preferredColName = gid ? (SHEET_DEFAULT_FILTER[gid] ?? null) : null;
+  // Buscar filtro por GID o por nombre de hoja
+  const preferredColName = (gid ? SHEET_DEFAULT_FILTER[gid] : null)
+    ?? SHEET_DEFAULT_FILTER_BY_NAME[curSheet]
+    ?? null;
   if(!preferredColName) return;
 
   const h = allData[curSheet].h;
