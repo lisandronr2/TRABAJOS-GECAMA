@@ -149,6 +149,40 @@ tr:last-child td{border-bottom:none}
 .pill-violet{background:var(--violet-bg);color:var(--violet);border:1px solid var(--violet-bd)}
 .pill-gray{background:var(--surface);color:var(--t3);border:1px solid var(--border)}
 
+/* ── MULTI-SELECT VALOR ── */
+.ms-wrap{position:relative;min-width:0}
+.ms-btn{
+  height:34px;padding:0 28px 0 10px;min-width:140px;max-width:260px;width:100%;
+  border:1px solid var(--border-s);border-radius:var(--r);
+  background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color:var(--text);font-size:13px;cursor:pointer;text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;appearance:none
+}
+.ms-btn:disabled{opacity:.45;cursor:not-allowed}
+.ms-btn:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px rgba(24,95,165,.18)}
+.ms-drop{
+  display:none;flex-direction:column;position:absolute;top:calc(100% + 4px);left:0;z-index:200;
+  min-width:200px;max-width:320px;
+  background:var(--card);border:1px solid var(--border-s);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden
+}
+.ms-drop.open{display:flex}
+.ms-acts{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ms-acts button{
+  flex:1;padding:3px 0;border:1px solid var(--border-s);border-radius:4px;
+  background:var(--surface);color:var(--t2);font-size:11px;font-weight:600;cursor:pointer
+}
+.ms-acts button:hover{background:var(--blue-lt);color:var(--blue)}
+.ms-list{overflow-y:auto;max-height:200px}
+.ms-item{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
+  font-size:12.5px;color:var(--text);border-bottom:1px solid var(--border)
+}
+.ms-item:last-child{border-bottom:none}
+.ms-item:hover{background:var(--blue-lt)}
+.ms-item.sel{background:var(--hl)}
+.ms-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--blue);flex-shrink:0}
+
 /* ── EMPTY STATES ── */
 .state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;color:var(--t3);flex:1}
 .state .ico{font-size:40px;opacity:.35}
@@ -239,9 +273,16 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="ctrl">
     <label>Valor</label>
-    <select id="sel-val" onchange="onVal()" disabled>
-      <option value="">— Elige columna —</option>
-    </select>
+    <div class="ms-wrap" id="ms-wrap">
+      <button class="ms-btn" id="ms-btn" type="button" onclick="toggleMsDrop(event)" disabled>— Elige columna —</button>
+      <div class="ms-drop" id="ms-drop">
+        <div class="ms-acts">
+          <button type="button" onclick="msAll()">Todos</button>
+          <button type="button" onclick="msNone()">Ninguno</button>
+        </div>
+        <div class="ms-list" id="ms-list"></div>
+      </div>
+    </div>
   </div>
   <button class="btn-rst" id="btn-rst" onclick="resetAll()" style="display:none">✕ Limpiar</button>
 </div>
@@ -289,8 +330,16 @@ const STATUS_MAP = {
 // ESTADO
 // ═══════════════════════════════════════════════
 let db = null, allData = {}, knownSheets = [], newSheets = new Set();
-let curSheet = '', curCol = -1, curVal = '', sortSt = {col:-1,asc:true};
+let curSheet = '', curCol = -1, curVals = new Set(), sortSt = {col:-1,asc:true};
 let syncing = false, syncTimer = null, pendingSW = null, toastTmr = null;
+
+// Columnas identificadoras que se CUENTAN, no se suman
+const IDENTIFIER_COLS = new Set([
+  'parcela','ct','ct #','ct numero','ct número','anillo','baculo','báculo',
+  'camara','cámara','torpedo','direccion','dirección','area','área',
+  'personal empleado','identificacion','identificación','código etiqueta',
+  'inicio tramo','fin tramo','tipo de cable','observaciones','estado tendido'
+]);
 
 // ═══════════════════════════════════════════════
 // TEMA
@@ -584,12 +633,11 @@ function buildSheetSelector(){
 
 function onHoja(){
   curSheet = document.getElementById('sel-hoja').value;
-  curCol=-1; curVal=''; sortSt={col:-1,asc:true};
+  curCol=-1; curVals=new Set(); sortSt={col:-1,asc:true};
   const sc=document.getElementById('sel-col');
-  const sv=document.getElementById('sel-val');
-  sc.disabled=true; sv.disabled=true;
+  sc.disabled=true;
   sc.innerHTML='<option value="">— Elige columna —</option>';
-  sv.innerHTML='<option value="">— Elige columna —</option>';
+  msReset();
   document.getElementById('btn-rst').style.display='none';
   if(!curSheet || !allData[curSheet]){ showWelcome(); return; }
   const h = allData[curSheet].h;
@@ -608,40 +656,26 @@ function onHoja(){
 function onCol(){
   curCol = parseInt(document.getElementById('sel-col').value);
   if(isNaN(curCol)) return;
-  curVal='';
-  const sv = document.getElementById('sel-val');
-  sv.innerHTML='<option value="">— Selecciona valor —</option>';
+  curVals = new Set();
   const rows = allData[curSheet]?.r||[];
-  [...new Set(rows.map(r=>r[curCol]??'').filter(v=>v!==''))].sort().forEach(v=>{
-    const o=document.createElement('option'); o.value=v; o.textContent=v; sv.appendChild(o);
-  });
-  sv.disabled=false;
+  const vals = [...new Set(rows.map(r=>r[curCol]??'').filter(v=>v!==''))].sort();
+  msBuild(vals);
   updateInfoBar();
   renderTable(filtered());
-}
-
-function onVal(){
-  curVal = document.getElementById('sel-val').value;
-  document.getElementById('btn-rst').style.display = curVal ? '' : 'none';
-  const rows = filtered();
-  renderTable(rows);
-  updateInfoBar();
-  updateStats(rows);
+  updateStats(filtered());
 }
 
 function filtered(){
   if(!curSheet || !allData[curSheet]) return[];
   const r = allData[curSheet].r;
-  if(curCol<0 || !curVal) return r;
-  return r.filter(row=>(row[curCol]??'')===curVal);
+  if(curCol<0 || !curVals.size) return r;
+  return r.filter(row=>curVals.has(row[curCol]??''));
 }
 
 function resetAll(){
-  curCol=-1; curVal=''; sortSt={col:-1,asc:true};
+  curCol=-1; curVals=new Set(); sortSt={col:-1,asc:true};
   document.getElementById('sel-col').value='';
-  const sv=document.getElementById('sel-val');
-  sv.innerHTML='<option value="">— Elige columna —</option>';
-  sv.disabled=true;
+  msReset();
   document.getElementById('btn-rst').style.display='none';
   document.getElementById('info-bar').classList.remove('show');
   if(curSheet && allData[curSheet]){
@@ -654,13 +688,74 @@ function resetAll(){
 
 function refreshValSel(){
   if(curCol<0) return;
-  const sv=document.getElementById('sel-val');
-  const prev=sv.value;
-  const vals=[...new Set((allData[curSheet]?.r||[]).map(r=>r[curCol]??'').filter(v=>v!==''))].sort();
-  sv.innerHTML='<option value="">— Selecciona valor —</option>';
-  vals.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sv.appendChild(o);});
-  if(prev) sv.value=prev;
+  const prev = new Set(curVals);
+  const vals = [...new Set((allData[curSheet]?.r||[]).map(r=>r[curCol]??'').filter(v=>v!==''))].sort();
+  msBuild(vals);
+  // restaurar selección previa
+  document.querySelectorAll('#ms-list input[type=checkbox]').forEach(cb=>{
+    if(prev.has(cb.value)){ cb.checked=true; cb.closest('.ms-item').classList.add('sel'); }
+  });
+  curVals = new Set([...document.querySelectorAll('#ms-list input[type=checkbox]:checked')].map(cb=>cb.value));
+  updateMsBtn();
 }
+
+// ── MULTI-SELECT ──
+function msBuild(vals){
+  const list = document.getElementById('ms-list');
+  list.innerHTML='';
+  vals.forEach(v=>{
+    const lbl=document.createElement('label');
+    lbl.className='ms-item';
+    lbl.innerHTML=`<input type="checkbox" value="${esc(v)}" onchange="onMsChange()"><span>${esc(v)}</span>`;
+    list.appendChild(lbl);
+  });
+  const btn=document.getElementById('ms-btn');
+  btn.disabled=false; btn.textContent='— Selecciona valor —';
+}
+function msReset(){
+  document.getElementById('ms-list').innerHTML='';
+  const btn=document.getElementById('ms-btn');
+  btn.disabled=true; btn.textContent='— Elige columna —';
+  document.getElementById('ms-drop').classList.remove('open');
+}
+function toggleMsDrop(e){
+  e?.stopPropagation();
+  document.getElementById('ms-drop').classList.toggle('open');
+}
+function msAll(){
+  document.querySelectorAll('#ms-list input[type=checkbox]').forEach(cb=>{
+    cb.checked=true; cb.closest('.ms-item').classList.add('sel');
+  });
+  onMsChange();
+}
+function msNone(){
+  document.querySelectorAll('#ms-list input[type=checkbox]').forEach(cb=>{
+    cb.checked=false; cb.closest('.ms-item').classList.remove('sel');
+  });
+  onMsChange();
+}
+function onMsChange(){
+  curVals=new Set([...document.querySelectorAll('#ms-list input[type=checkbox]:checked')].map(cb=>cb.value));
+  document.querySelectorAll('#ms-list .ms-item').forEach(item=>{
+    item.classList.toggle('sel', item.querySelector('input').checked);
+  });
+  updateMsBtn();
+  document.getElementById('btn-rst').style.display=curVals.size?'':'none';
+  const rows=filtered();
+  renderTable(rows);
+  updateInfoBar();
+  updateStats(rows);
+}
+function updateMsBtn(){
+  const btn=document.getElementById('ms-btn');
+  const n=curVals.size;
+  if(n===0) btn.textContent='— Selecciona valor —';
+  else if(n===1) btn.textContent=[...curVals][0];
+  else btn.textContent=`${n} seleccionados`;
+}
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#ms-wrap')) document.getElementById('ms-drop')?.classList.remove('open');
+});
 
 // ═══════════════════════════════════════════════
 // RENDER TABLA
@@ -682,8 +777,9 @@ function renderTable(rows, headers){
   const h = headers || (curSheet ? allData[curSheet]?.h : []) || [];
   if(!curSheet || !h.length){ showWelcome(); return; }
 
-  if(!rows.length && curVal){
-    wrap.innerHTML=`<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros con <strong>${esc(h[curCol]||'')}</strong> = <strong>${esc(curVal)}</strong></p></div>`;
+  if(!rows.length && curVals.size){
+    const vlist=[...curVals].slice(0,3).map(v=>`<strong>${esc(v)}</strong>`).join(', ')+(curVals.size>3?'…':'');
+    wrap.innerHTML=`<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros con <strong>${esc(h[curCol]||'')}</strong> = ${vlist}</p></div>`;
     setCount(0); return;
   }
 
@@ -701,7 +797,7 @@ function renderTable(rows, headers){
   h.forEach((col,i)=>{
     const s=sortSt.col===i;
     const arr=s?(sortSt.asc?'▲':'▼'):'⇅';
-    const hl=(i===curCol&&curVal)?' chs':'';
+    const hl=(i===curCol&&curVals.size)?' chs':'';
     html+=`<th class="${s?'sorted':''}${hl}" onclick="sortBy(${i})">${esc(col||'')}<span class="si">${arr}</span></th>`;
   });
   html+=`</tr></thead><tbody>`;
@@ -709,7 +805,7 @@ function renderTable(rows, headers){
     html+='<tr>';
     h.forEach((hdr,i)=>{
       const v=row[i]??'';
-      const isH=(i===curCol&&curVal&&v===curVal);
+      const isH=(i===curCol&&curVals.size&&curVals.has(v));
       const isSt=isStatusCol(hdr);
       const content = v!==''
         ? (isSt ? statusPill(v) : esc(String(v)))
@@ -738,7 +834,11 @@ function updateInfoBar(){
   if(!curSheet){bar.classList.remove('show');return;}
   const h=allData[curSheet]?.h||[];
   let html=`<span class="itag">${esc(curSheet)}</span>`;
-  if(curCol>=0&&h[curCol]) html+=` Filtrado por <strong>${esc(h[curCol])}</strong>`+(curVal?` → <strong>${esc(curVal)}</strong>`:'');
+  if(curCol>=0&&h[curCol]){
+    html+=` Filtrado por <strong>${esc(h[curCol])}</strong>`;
+    if(curVals.size===1) html+=` → <strong>${esc([...curVals][0])}</strong>`;
+    else if(curVals.size>1) html+=` → <strong>${curVals.size} valores</strong>`;
+  }
   bar.innerHTML=html; bar.classList.add('show');
 }
 
@@ -747,20 +847,30 @@ function updateStats(rows){
   if(!rows||!rows.length){sr.classList.remove('show');return;}
   const h=allData[curSheet]?.h||[];
 
-  const numCols=[];
+  const numCols=[], cntCols=[];
   h.forEach((name,i)=>{
-    if(curVal&&i===curCol) return;
+    const lc=(name||'').toLowerCase().trim();
+    if(IDENTIFIER_COLS.has(lc)){
+      cntCols.push({name,i});
+      return;
+    }
     const nums=rows.map(r=>parseFloat(r[i])).filter(n=>!isNaN(n));
     if(nums.length>rows.length*.3) numCols.push({name,nums,i});
   });
 
-  const statsHtml=numCols.slice(0,5).map(({name,nums})=>{
-    const s=nums.reduce((a,b)=>a+b,0);
-    const fmt=s%1===0?s.toLocaleString('es-ES'):s.toFixed(1);
-    const lc=name.toLowerCase();
-    const unit=lc.includes('longitud')||lc.includes('(m)')||lc.includes(' m)')?' m':'';
-    return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${fmt}<span class="stat-unit">${unit||'total'}</span></div></div>`;
-  }).join('');
+  const statsHtml=[
+    ...cntCols.slice(0,3).map(({name,i})=>{
+      const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='')).size;
+      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">únicos</span></div></div>`;
+    }),
+    ...numCols.slice(0,4).map(({name,nums})=>{
+      const s=nums.reduce((a,b)=>a+b,0);
+      const fmt=s%1===0?s.toLocaleString('es-ES'):s.toFixed(1);
+      const lc=name.toLowerCase();
+      const unit=lc.includes('longitud')||lc.includes('(m)')||lc.includes(' m)')?' m':'';
+      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${fmt}<span class="stat-unit">${unit||'total'}</span></div></div>`;
+    })
+  ].join('');
 
   if(!statsHtml&&!rows.length){sr.classList.remove('show');return;}
   sr.innerHTML=statsHtml+`<div class="stat"><div class="stat-lbl">Registros</div><div class="stat-val">${rows.length}</div></div>`;
@@ -785,13 +895,9 @@ function autoSelectFilterCol(){
   sc.value = String(idx);
   curCol = idx;
 
-  const sv = document.getElementById('sel-val');
-  sv.innerHTML = '<option value="">— Selecciona valor —</option>';
   const rows = allData[curSheet]?.r || [];
-  [...new Set(rows.map(r=>r[idx]??'').filter(v=>v!==''))].sort().forEach(v=>{
-    const o=document.createElement('option'); o.value=v; o.textContent=v; sv.appendChild(o);
-  });
-  sv.disabled = false;
+  const vals = [...new Set(rows.map(r=>r[idx]??'').filter(v=>v!==''))].sort();
+  msBuild(vals);
   updateInfoBar();
 }
 
