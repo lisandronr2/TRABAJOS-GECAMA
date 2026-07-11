@@ -230,10 +230,7 @@ tr:last-child td{border-bottom:none}
 </head>
 <body>
 
-<div class="banner" id="b-update">
-  🔄 Nueva versión disponible
-  <button class="btn-bn upd" onclick="doUpdate()">Actualizar ahora</button>
-</div>
+<div class="banner" id="b-update" style="display:none"></div>
 <div class="banner" id="b-offline">
   📴 <b>Sin conexión</b> — Mostrando datos en caché. Se sincronizará al recuperar conexión.
 </div>
@@ -411,12 +408,23 @@ function parseCSV(txt){
   return rows;
 }
 
-// Elimina columnas donde el encabezado está vacío
+// Limpia el nombre de columna: quita espacios y elimina sufijos de sub-cabeceras
+// fusionadas que el API de gviz colapsa (ej: "CT CT01 CT01 CT01..." → "CT")
+function cleanHeader(h){
+  const s = h.trim();
+  if(s.length <= 20) return s;
+  const words = s.split(/\s+/);
+  // Buscar primer token que parezca un identificador (letras+dígitos: CT01, ARM04, etc.)
+  const cut = words.findIndex(w => /^[A-Za-z]{1,6}\d+$/.test(w));
+  if(cut > 0) return words.slice(0, cut).join(' ');
+  return s;
+}
+
+// Elimina columnas donde el encabezado está vacío y limpia nombres
 function stripEmptyCols(h,r){
   const keep=h.map((v,i)=>v.trim()!==''?i:-1).filter(i=>i>=0);
-  if(keep.length===h.length)return{h,r};
   return{
-    h:keep.map(i=>h[i]),
+    h:keep.map(i=>cleanHeader(h[i])),
     r:r.map(row=>keep.map(i=>row[i]??''))
   };
 }
@@ -524,9 +532,26 @@ async function fetchSheetNames(){
 // ═══════════════════════════════════════════════
 // SINCRONIZACIÓN
 // ═══════════════════════════════════════════════
+async function checkAppVersion(){
+  try{
+    const r = await fetch('./version.json',{cache:'no-store'});
+    if(!r.ok) return;
+    const {v} = await r.json();
+    const stored = localStorage.getItem('gecama-app-v');
+    if(stored && stored !== v){
+      localStorage.setItem('gecama-app-v', v);
+      toast('🔄 App actualizada', 'ok');
+      setTimeout(()=>window.location.reload(), 800);
+      return;
+    }
+    localStorage.setItem('gecama-app-v', v);
+  }catch(e){ /* sin conexión, ignorar */ }
+}
+
 async function syncNow(manual=false){
   if(syncing){if(manual)toast('⏳ Sync en curso…','warn');return;}
   if(!navigator.onLine){if(manual)toast('📴 Sin conexión. Datos locales activos.','warn');return;}
+  checkAppVersion(); // verificar versión en paralelo, sin bloquear el sync
   syncing=true;
   setSyncState('spin','Sincronizando…');
   document.getElementById('btn-sync').disabled=true;
@@ -989,11 +1014,15 @@ async function registerSW(){
       const nw = reg.installing;
       nw.addEventListener('statechange',()=>{
         if(nw.state==='installed' && navigator.serviceWorker.controller){
-          pendingSW=nw; showBanner('b-update');
+          pendingSW=nw;
+          pendingSW.postMessage({type:'SKIP_WAITING'}); // activar sin confirmación
         }
       });
     });
-    navigator.serviceWorker.addEventListener('controllerchange',()=>window.location.reload());
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      toast('🔄 App actualizada', 'ok');
+      setTimeout(()=>window.location.reload(), 800);
+    });
   }catch(e){ console.warn('SW:',e); }
 }
 
