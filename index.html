@@ -1285,13 +1285,16 @@ function runResumen(){
   renderResumenResults(results, label);
 }
 
+const RES_STATS_EXCLUDE = new Set(['inicio tramo','fin tramo','anillo']);
+
 function buildResStats(headers, rows, dateCols){
   const dateSet = new Set(dateCols || []);
   const chips = [];
   const cntCols = [], numCols = [];
   headers.forEach((name, i) => {
-    if(dateSet.has(i)) return; // excluir columnas de fecha
+    if(dateSet.has(i)) return;
     const lc = (name||'').toLowerCase().trim();
+    if(RES_STATS_EXCLUDE.has(lc)) return;
     if(IDENTIFIER_COLS.has(lc)){ cntCols.push({name,i}); return; }
     // Verificar que los valores son números reales (no fechas disfrazadas)
     const vals = rows.map(r => r[i]??'').filter(v => v!=='');
