@@ -85,6 +85,7 @@ async function notifyClients() {
 }
 
 function isShell(url) {
+  if(url.endsWith('version.json')) return false; // siempre red directa
   return url.includes(self.location.origin) &&
     (url.endsWith('.html') || url.endsWith('.js') || url.endsWith('.json') ||
      url.endsWith('.svg')  || url.endsWith('.png') || url.endsWith('.ico') ||

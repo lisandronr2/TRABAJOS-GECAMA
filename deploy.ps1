@@ -1,110 +1,55 @@
 # ============================================================
-#  GECAMA — Deploy manual a Vercel
+#  GECAMA — Deploy a Vercel con auto-incremento de version
 #  Uso: powershell -ExecutionPolicy Bypass -File deploy.ps1
 #
-#  Requiere: $env:VERCEL_TOKEN definido en el entorno
-#  Nota: el repo conectado a Vercel se despliega automaticamente
-#        en cada git push. Este script es para deploy manual.
+#  - Lee version.json, incrementa el 4º numero (build)
+#  - Hace git commit + push (Vercel se despliega automaticamente)
 # ============================================================
 
 $SRC      = $PSScriptRoot
-$TOKEN    = $env:VERCEL_TOKEN
+$VER_FILE = "$SRC\version.json"
 $SITE_URL = "https://gecama-trabajos.vercel.app"
 
-if (-not $TOKEN) {
-  Write-Host "ERROR: define VERCEL_TOKEN en tu entorno antes de ejecutar." -ForegroundColor Red
-  Write-Host "  $env:VERCEL_TOKEN = 'tu-token-aqui'" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "=== GECAMA Deploy ===" -ForegroundColor Cyan
+
+# ── 1. Leer y actualizar version ──────────────────────────────
+$json = Get-Content $VER_FILE -Raw | ConvertFrom-Json
+$current = $json.v
+
+# Parsear formato A.B.C.D
+$parts = $current -split '\.'
+if($parts.Count -ne 4){
+  Write-Host "ERROR: formato de version invalido en version.json: $current" -ForegroundColor Red
+  Write-Host "  Se esperaba A.B.C.D (ej: 2.7.3.0)" -ForegroundColor Yellow
   exit 1
 }
 
-Write-Host ""
-Write-Host "=== GECAMA Deploy a Vercel ===" -ForegroundColor Cyan
+$parts[3] = [int]$parts[3] + 1
+$newVer = $parts -join '.'
 
-# 1. Actualizar version.json con timestamp actual (cache busting)
-$v = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-Set-Content -Path "$SRC\version.json" -Value "{`"v`":`"$v`"}" -Encoding utf8
-Write-Host "[1/3] version.json actualizado: $v" -ForegroundColor Green
+Set-Content -Path $VER_FILE -Value "{`"v`":`"$newVer`"}`n" -Encoding utf8
+Write-Host "[1/3] Version: $current  ->  $newVer" -ForegroundColor Green
 
-# 2. Preparar archivos para el deploy
-$archivos = @(
-  "index.html",
-  "sw.js",
-  "manifest.json",
-  "vercel.json",
-  "version.json",
-  "instalar.html",
-  "icon.svg",
-  "icon-192.png",
-  "icon-512.png",
-  "api/sync.js"
-)
+# ── 2. Git commit + push ──────────────────────────────────────
+Write-Host "[2/3] Preparando commit..." -ForegroundColor Yellow
 
-$fileList = @()
-foreach ($f in $archivos) {
-  $path = Join-Path $SRC $f
-  if (-not (Test-Path $path)) {
-    Write-Host "  OMITIDO (no existe): $f" -ForegroundColor Yellow
-    continue
-  }
-  $bytes = [System.IO.File]::ReadAllBytes($path)
-  $b64   = [Convert]::ToBase64String($bytes)
-  $fileList += @{ file = $f; data = $b64; encoding = "base64" }
-  Write-Host "  + $f ($([Math]::Round($bytes.Length/1KB,1)) KB)" -ForegroundColor DarkGray
-}
-Write-Host "[2/3] $($fileList.Count) archivos listos" -ForegroundColor Green
+git -C $SRC add -A
+if(-not $?){ Write-Host "  ERROR en git add" -ForegroundColor Red; exit 1 }
 
-# 3. Desplegar en Vercel via API
-$headers = @{
-  "Authorization" = "Bearer $TOKEN"
-  "Content-Type"  = "application/json"
-}
-$body = @{
-  name            = "gecama-trabajos"
-  files           = $fileList
-  projectSettings = @{ framework = $null }
-  target          = "production"
-} | ConvertTo-Json -Depth 10 -Compress
+$msg = "v$newVer — deploy"
+git -C $SRC commit -m $msg
+if(-not $?){ Write-Host "  Nada que commitear o error en commit" -ForegroundColor Yellow }
 
-Write-Host "[3/3] Subiendo a Vercel..." -ForegroundColor Yellow
-
-try {
-  $resp = Invoke-RestMethod -Uri "https://api.vercel.com/v13/deployments" `
-    -Method POST -Headers $headers -Body $body
-
-  $deployId = $resp.id
-  Write-Host "  Deploy ID: $deployId" -ForegroundColor DarkGray
-
-  # Esperar publicacion (max 2 min, poll cada 5 s)
-  $ready = $false
-  for ($i = 0; $i -lt 24; $i++) {
-    Start-Sleep -Seconds 5
-    $s = Invoke-RestMethod `
-      -Uri "https://api.vercel.com/v13/deployments/$deployId" `
-      -Headers @{ "Authorization" = "Bearer $TOKEN" }
-
-    $state = $s.readyState
-    Write-Host "  Estado: $state" -ForegroundColor DarkGray
-
-    if ($state -eq "READY") { $ready = $true; break }
-    if ($state -eq "ERROR") {
-      Write-Host "  Error en deploy: $($s.errorMessage)" -ForegroundColor Red
-      break
-    }
-  }
-
-  if ($ready) {
-    Write-Host ""
-    Write-Host "  DEPLOY COMPLETADO " -ForegroundColor Green
-    Write-Host "  $SITE_URL" -ForegroundColor Cyan
-    Write-Host "  La app se actualiza en todos los dispositivos en ~2 min." -ForegroundColor Green
-  } else {
-    Write-Host "  Tiempo de espera agotado. Revisa el dashboard de Vercel." -ForegroundColor Yellow
-    Write-Host "  https://vercel.com/dashboard" -ForegroundColor Cyan
-  }
-
-} catch {
-  Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
-  Write-Host "  Revisa que VERCEL_TOKEN sea valido y el proyecto exista." -ForegroundColor Yellow
+Write-Host "[3/3] Publicando en GitHub -> Vercel..." -ForegroundColor Yellow
+git -C $SRC push origin main
+if($?){
+  Write-Host ""
+  Write-Host "  DEPLOY LANZADO  v$newVer" -ForegroundColor Green
+  Write-Host "  Vercel desplegara en ~30 seg: $SITE_URL" -ForegroundColor Cyan
+  Write-Host "  La app se actualiza en todos los dispositivos automaticamente." -ForegroundColor Green
+}else{
+  Write-Host "  ERROR en git push. Revisa la conexion y credenciales." -ForegroundColor Red
 }
 
 Write-Host ""
