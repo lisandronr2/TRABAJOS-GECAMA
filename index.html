@@ -282,15 +282,56 @@ tr:last-child td{border-bottom:none}
 .res-twrap td.date-hl{background:var(--hl);font-weight:600}
 .res-twrap tr:hover td.date-hl{background:var(--hl2)}
 
+/* ── RESUMEN ACTION BAR ── */
+.res-action-bar{
+  display:flex;align-items:center;gap:8px;padding:7px 14px;
+  border-bottom:1px solid var(--border);flex-shrink:0;background:var(--card2)
+}
+.res-action-btn{
+  background:var(--blue);color:#fff;border:none;border-radius:var(--r);
+  padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;gap:5px;line-height:1
+}
+.res-action-btn:hover{background:var(--blue-dk)}
+.res-action-btn--excel{background:#1b7a4a}
+.res-action-btn--excel:hover{background:#155c38}
+
 /* ── PRINT ── */
 @media print{
-  .hdr{background:var(--blue)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .ctrl-bar,.info-bar,.hacts,.btn-rst,#b-update,#b-offline,#b-error,.toast,.foot{display:none!important}
-  html,body{height:auto;overflow:visible}
-  .rwrap{overflow:visible}
-  .twrap{overflow:visible}
-  thead{position:static}
-  tr{page-break-inside:avoid}
+  /* Default print (main table) */
+  body:not(.print-resumen) .resumen-overlay{display:none!important}
+  body:not(.print-resumen) .hdr{background:var(--blue)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body:not(.print-resumen) .ctrl-bar,body:not(.print-resumen) .info-bar,body:not(.print-resumen) .hacts,body:not(.print-resumen) .btn-rst,body:not(.print-resumen) #b-update,body:not(.print-resumen) #b-offline,body:not(.print-resumen) #b-error,body:not(.print-resumen) .toast,body:not(.print-resumen) .foot{display:none!important}
+  body:not(.print-resumen) .rwrap{overflow:visible}
+  body:not(.print-resumen) .twrap{overflow:visible}
+  body:not(.print-resumen) thead{position:static}
+  body:not(.print-resumen) tr{page-break-inside:avoid}
+
+  /* Resumen print */
+  body.print-resumen .hdr,
+  body.print-resumen .ctrl-bar,
+  body.print-resumen .info-bar,
+  body.print-resumen .stats-row,
+  body.print-resumen .rwrap,
+  body.print-resumen .foot,
+  body.print-resumen .toast,
+  body.print-resumen .banner,
+  body.print-resumen #b-error,
+  body.print-resumen .res-hdr-close,
+  body.print-resumen .res-ctrl,
+  body.print-resumen .res-action-bar{display:none!important}
+  body.print-resumen #resumen-overlay{
+    position:static!important;transform:none!important;
+    overflow:visible!important;height:auto!important;z-index:auto!important
+  }
+  body.print-resumen .res-results{
+    overflow:visible!important;max-height:none!important;
+    height:auto!important;padding:8px!important
+  }
+  body.print-resumen .res-twrap{overflow:visible!important}
+  body.print-resumen .res-twrap td{white-space:normal!important;max-width:none!important}
+  body.print-resumen .res-sheet-group{break-inside:avoid;page-break-inside:avoid;margin-bottom:16px}
+  html,body{height:auto!important;overflow:visible!important}
 }
 
 /* ── RESPONSIVE ── */
@@ -422,6 +463,10 @@ tr:last-child td{border-bottom:none}
     <button class="btn-res-search" onclick="runResumen()">🔍 Buscar</button>
   </div>
   <div class="res-summary-bar" id="res-summary"></div>
+  <div class="res-action-bar" id="res-action-bar" style="display:none">
+    <button class="res-action-btn" onclick="printResumen()">🖨 Imprimir / PDF</button>
+    <button class="res-action-btn res-action-btn--excel" onclick="downloadExcel()">📥 Excel</button>
+  </div>
   <div class="res-results" id="res-results">
     <div class="state">
       <div class="ico">📅</div>
@@ -1328,21 +1373,23 @@ function buildResStats(headers, rows, dateCols){
   return chips.join('');
 }
 
+let lastResults = null;
+
 function renderResumenResults(results, label){
-  const sumEl = document.getElementById('res-summary');
-  const cont  = document.getElementById('res-results');
+  const sumEl     = document.getElementById('res-summary');
+  const cont      = document.getElementById('res-results');
+  const actionBar = document.getElementById('res-action-bar');
 
   if(!results.length){
+    lastResults = null;
+    actionBar.style.display = 'none';
     sumEl.innerHTML = '';
     cont.innerHTML  = `<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No se encontraron registros para <strong>${esc(label)}</strong>.<br>Verifica que las hojas tengan columnas de fecha con datos.</p></div>`;
     return;
   }
 
-  const totalRows = results.reduce((s,r) => s + r.rows.length, 0);
-  sumEl.innerHTML = `<span class="itag">${esc(label)}</span> &nbsp;${results.length} hoja${results.length>1?'s':''} &nbsp;·&nbsp; ${totalRows} registro${totalRows>1?'s':''}`;
-
-  const sheetsHtml = results.map(({sheet, headers, rows, dateCols}) => {
-    // Ordenar filas de menor a mayor por la primera columna de fecha
+  // Sort rows per sheet and store for print/export
+  const processedSheets = results.map(({sheet, headers, rows, dateCols}) => {
     const sortedRows = [...rows].sort((a, b) => {
       for(const ci of dateCols){
         const da = resParseDate(a[ci]), db = resParseDate(b[ci]);
@@ -1350,9 +1397,18 @@ function renderResumenResults(results, label){
       }
       return 0;
     });
+    return {sheet, headers, sortedRows, dateCols};
+  });
 
+  lastResults = {label, sheets: processedSheets};
+  actionBar.style.display = '';
+
+  const totalRows = processedSheets.reduce((s,r) => s + r.sortedRows.length, 0);
+  sumEl.innerHTML = `<span class="itag">${esc(label)}</span> &nbsp;${processedSheets.length} hoja${processedSheets.length>1?'s':''} &nbsp;·&nbsp; ${totalRows} registro${totalRows>1?'s':''}`;
+
+  const sheetsHtml = processedSheets.map(({sheet, headers, sortedRows, dateCols}) => {
     let tbl = `<div class="res-sheet-group">`;
-    tbl += `<div class="res-sheet-hdr"><span class="itag">${esc(sheet)}</span><span class="rcount">${rows.length} registro${rows.length>1?'s':''}</span></div>`;
+    tbl += `<div class="res-sheet-hdr"><span class="itag">${esc(sheet)}</span><span class="rcount">${sortedRows.length} registro${sortedRows.length>1?'s':''}</span></div>`;
     tbl += `<div class="res-stats-strip">${buildResStats(headers, sortedRows, dateCols)}</div>`;
     tbl += `<div class="res-twrap"><table><thead><tr>`;
     headers.forEach((col,i) => {
@@ -1375,6 +1431,72 @@ function renderResumenResults(results, label){
   }).join('');
 
   cont.innerHTML = sheetsHtml;
+}
+
+function escXml(s){
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+
+function xlsType(v){
+  if(v===''||v==null) return 'String';
+  const s = String(v).trim();
+  if(/[\/\-:]/.test(s)) return 'String';
+  const n = Number(s);
+  return (!isNaN(n) && isFinite(n)) ? 'Number' : 'String';
+}
+
+function printResumen(){
+  if(!lastResults) return;
+  document.body.classList.add('print-resumen');
+  window.print();
+}
+
+window.addEventListener('afterprint', function(){
+  document.body.classList.remove('print-resumen');
+});
+
+function downloadExcel(){
+  if(!lastResults || !lastResults.sheets.length){
+    return;
+  }
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n'
+    + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
+    + 'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+
+  lastResults.sheets.forEach(({sheet, headers, sortedRows}) => {
+    const sheetName = escXml(sheet.slice(0,31));
+    xml += `<Worksheet ss:Name="${sheetName}"><Table>`;
+    xml += '<Row>';
+    headers.forEach(h => { xml += `<Cell><Data ss:Type="String">${escXml(h||'')}</Data></Cell>`; });
+    xml += '</Row>';
+    sortedRows.forEach(row => {
+      xml += '<Row>';
+      headers.forEach((_,i) => {
+        const v  = row[i] ?? '';
+        const vs = String(v);
+        const t  = xlsType(v);
+        xml += `<Cell><Data ss:Type="${t}">${escXml(vs)}</Data></Cell>`;
+      });
+      xml += '</Row>';
+    });
+    xml += '</Table></Worksheet>';
+  });
+
+  xml += '</Workbook>';
+
+  const bom  = '﻿';
+  const blob = new Blob([bom + xml], {type:'application/vnd.ms-excel;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0,10);
+  a.href     = url;
+  a.download = `resumen_${date}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 </script>
 </body>
