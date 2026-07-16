@@ -1342,15 +1342,24 @@ function renderResumenResults(results, label){
   sumEl.innerHTML = `<span class="itag">${esc(label)}</span> &nbsp;${results.length} hoja${results.length>1?'s':''} &nbsp;·&nbsp; ${totalRows} registro${totalRows>1?'s':''}`;
 
   const sheetsHtml = results.map(({sheet, headers, rows, dateCols}) => {
+    // Ordenar filas de menor a mayor por la primera columna de fecha
+    const sortedRows = [...rows].sort((a, b) => {
+      for(const ci of dateCols){
+        const da = resParseDate(a[ci]), db = resParseDate(b[ci]);
+        if(da && db) return resDateMs(da) - resDateMs(db);
+      }
+      return 0;
+    });
+
     let tbl = `<div class="res-sheet-group">`;
     tbl += `<div class="res-sheet-hdr"><span class="itag">${esc(sheet)}</span><span class="rcount">${rows.length} registro${rows.length>1?'s':''}</span></div>`;
-    tbl += `<div class="res-stats-strip">${buildResStats(headers, rows, dateCols)}</div>`;
+    tbl += `<div class="res-stats-strip">${buildResStats(headers, sortedRows, dateCols)}</div>`;
     tbl += `<div class="res-twrap"><table><thead><tr>`;
     headers.forEach((col,i) => {
       tbl += `<th${dateCols.includes(i)?' class="date-col"':''}>${esc(col||'')}</th>`;
     });
     tbl += `</tr></thead><tbody>`;
-    rows.forEach(row => {
+    sortedRows.forEach(row => {
       tbl += '<tr>';
       headers.forEach((hdr,i) => {
         const v = row[i] ?? '';
