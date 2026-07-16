@@ -200,6 +200,74 @@ tr:last-child td{border-bottom:none}
 /* ── FOOTER ── */
 .foot{font-size:10px;color:var(--t3);text-align:right;padding:4px 14px;background:var(--card);border-top:1px solid var(--border);flex-shrink:0}
 
+/* ── RESUMEN OVERLAY ── */
+.resumen-overlay{
+  position:fixed;inset:0;z-index:500;
+  background:var(--surface);display:flex;flex-direction:column;
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.61,.36,1);
+}
+.resumen-overlay.show{transform:none}
+.res-hdr{
+  background:var(--blue);color:#fff;
+  padding:calc(10px + var(--safe-top)) 16px 10px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+  box-shadow:0 2px 10px rgba(0,0,0,.3)
+}
+.res-hdr-ico{font-size:20px;flex-shrink:0}
+.res-hdr-title{font-size:15px;font-weight:700;flex:1}
+.res-hdr-close{
+  padding:5px 13px;background:rgba(255,255,255,.15);
+  color:#fff;border:1px solid rgba(255,255,255,.3);
+  border-radius:var(--r);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap
+}
+.res-hdr-close:hover{background:rgba(255,255,255,.27)}
+.res-ctrl{
+  background:var(--card);border-bottom:1px solid var(--border);
+  padding:11px 14px;flex-shrink:0;
+  display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end
+}
+.res-field{display:flex;flex-direction:column;gap:3px}
+.res-field label{font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.res-field input[type=date],.res-field input[type=month]{
+  height:34px;padding:0 10px;border:1px solid var(--border-s);
+  border-radius:var(--r);background:var(--surface);
+  color:var(--text);font-size:13px;min-width:150px;cursor:pointer
+}
+.res-field input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px rgba(24,95,165,.18)}
+.btn-res-search{
+  height:34px;padding:0 20px;
+  background:var(--blue);color:#fff;
+  border:none;border-radius:var(--r);
+  font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0
+}
+.btn-res-search:hover{background:var(--blue-dk)}
+.res-input-group{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.res-summary-bar{
+  padding:6px 14px;font-size:12px;font-weight:600;
+  color:var(--blue);background:var(--blue-lt);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;gap:8px;min-height:30px
+}
+.res-results{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px;display:flex;flex-direction:column;gap:16px}
+.res-sheet-group{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0}
+.res-sheet-hdr{
+  display:flex;align-items:center;gap:10px;justify-content:space-between;
+  padding:9px 14px;background:var(--card2);
+  border-bottom:1px solid var(--border)
+}
+.res-twrap{overflow-x:auto}
+.res-twrap table{width:100%;border-collapse:collapse;font-size:12px}
+.res-twrap thead tr{background:var(--card2)}
+.res-twrap th{padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--t2);border-bottom:2px solid var(--border-s);white-space:nowrap;border-right:1px solid var(--border)}
+.res-twrap th:last-child{border-right:none}
+.res-twrap th.date-col{color:var(--blue)}
+.res-twrap td{padding:6px 10px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.res-twrap td:last-child{border-right:none}
+.res-twrap tr:hover td{background:var(--card2)}
+.res-twrap tr:last-child td{border-bottom:none}
+.res-twrap td.date-hl{background:var(--hl);font-weight:600}
+.res-twrap tr:hover td.date-hl{background:var(--hl2)}
+
 /* ── PRINT ── */
 @media print{
   .hdr{background:var(--blue)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -251,6 +319,7 @@ tr:last-child td{border-bottom:none}
     <div class="sbadge"><div class="sdot" id="sdot"></div><span id="slbl">Iniciando…</span></div>
     <button class="btn-h" id="btn-sync" onclick="syncNow(true)" title="Sincronizar ahora">↻ Sync</button>
     <button class="btn-h" onclick="window.print()" title="Imprimir / Exportar PDF">🖨</button>
+    <button class="btn-h" onclick="openResumen()" title="Resumen por fecha">📅 Resumen</button>
     <button class="btn-h" id="btn-theme" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
   </div>
 </div>
@@ -297,6 +366,56 @@ tr:last-child td{border-bottom:none}
 
 <div class="foot" id="foot"></div>
 <div class="toast" id="toast"></div>
+
+<!-- ── RESUMEN OVERLAY ── -->
+<div class="resumen-overlay" id="resumen-overlay">
+  <div class="res-hdr">
+    <div class="res-hdr-ico">📅</div>
+    <div class="res-hdr-title">RESUMEN POR FECHA</div>
+    <button class="res-hdr-close" onclick="closeResumen()">✕ Cerrar</button>
+  </div>
+  <div class="res-ctrl">
+    <div class="ctrl">
+      <label>Tipo de búsqueda</label>
+      <select id="res-tipo" onchange="toggleResTipo()">
+        <option value="fecha">Fecha exacta</option>
+        <option value="mes">Mes completo</option>
+        <option value="rango">Rango de fechas</option>
+      </select>
+    </div>
+    <div id="rg-fecha" class="res-input-group">
+      <div class="res-field">
+        <label>Fecha</label>
+        <input type="date" id="ri-fecha">
+      </div>
+    </div>
+    <div id="rg-mes" class="res-input-group" style="display:none">
+      <div class="res-field">
+        <label>Mes y año</label>
+        <input type="month" id="ri-mes">
+      </div>
+    </div>
+    <div id="rg-rango" class="res-input-group" style="display:none">
+      <div class="res-field">
+        <label>Desde</label>
+        <input type="date" id="ri-from">
+      </div>
+      <div class="res-field">
+        <label>Hasta</label>
+        <input type="date" id="ri-to">
+      </div>
+    </div>
+    <button class="btn-res-search" onclick="runResumen()">🔍 Buscar</button>
+  </div>
+  <div class="res-summary-bar" id="res-summary"></div>
+  <div class="res-results" id="res-results">
+    <div class="state">
+      <div class="ico">📅</div>
+      <h3>Buscar por fecha</h3>
+      <p>Selecciona el tipo de búsqueda, elige la fecha o periodo y pulsa <strong>Buscar</strong> para ver todos los trabajos realizados, agrupados por hoja.</p>
+    </div>
+  </div>
+</div>
 
 <script>
 // ═══════════════════════════════════════════════
@@ -1046,6 +1165,150 @@ async function init(){
   resetSyncTimer();
 }
 init().catch(console.error);
+
+// ═══════════════════════════════════════════════
+// RESUMEN POR FECHA
+// ═══════════════════════════════════════════════
+function openResumen(){
+  document.getElementById('resumen-overlay').classList.add('show');
+}
+function closeResumen(){
+  document.getElementById('resumen-overlay').classList.remove('show');
+}
+
+function toggleResTipo(){
+  const tipo = document.getElementById('res-tipo').value;
+  document.getElementById('rg-fecha').style.display  = tipo==='fecha'  ? 'flex' : 'none';
+  document.getElementById('rg-mes').style.display    = tipo==='mes'    ? 'flex' : 'none';
+  document.getElementById('rg-rango').style.display  = tipo==='rango'  ? 'flex' : 'none';
+}
+
+// Parsea string de fecha en varios formatos a Date, o null si no reconoce
+function resParseDate(str){
+  if(!str) return null;
+  const s = String(str).trim();
+  // DD/MM/YYYY o DD-MM-YYYY
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+  // YYYY-MM-DD (ISO)
+  m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  // DD/MM/YY
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+  if(m) return new Date(2000 + +m[3], +m[2]-1, +m[1]);
+  return null;
+}
+
+function resDateMs(d){
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+// Detecta qué columnas contienen fechas en una hoja
+function detectDateCols(headers, rows){
+  const cols = [];
+  headers.forEach((hdr, i) => {
+    const lc = (hdr||'').toLowerCase().trim();
+    // Por nombre de cabecera
+    if(lc.includes('fecha') || lc === 'date' || lc === 'día' || lc === 'dia' || lc.startsWith('fec')){
+      cols.push(i); return;
+    }
+    // Por contenido: muestrea hasta 15 filas
+    const sample = rows.slice(0, 15).map(r => r[i]||'').filter(v => v!=='');
+    if(sample.length === 0) return;
+    const dateHits = sample.filter(v => resParseDate(v) !== null).length;
+    if(dateHits >= Math.min(3, sample.length) && dateHits / sample.length >= 0.5) cols.push(i);
+  });
+  return [...new Set(cols)];
+}
+
+function runResumen(){
+  const tipo = document.getElementById('res-tipo').value;
+  let fromMs, toMs, label;
+
+  if(tipo === 'fecha'){
+    const val = document.getElementById('ri-fecha').value;
+    if(!val){ toast('Selecciona una fecha','warn'); return; }
+    const d = new Date(val + 'T00:00:00');
+    fromMs = toMs = resDateMs(d);
+    label = d.toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
+  } else if(tipo === 'mes'){
+    const val = document.getElementById('ri-mes').value;
+    if(!val){ toast('Selecciona un mes','warn'); return; }
+    const [y,mo] = val.split('-').map(Number);
+    fromMs = Date.UTC(y, mo-1, 1);
+    toMs   = Date.UTC(y, mo,   0);
+    label  = new Date(y, mo-1).toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  } else {
+    const f = document.getElementById('ri-from').value;
+    const t = document.getElementById('ri-to').value;
+    if(!f||!t){ toast('Selecciona el rango de fechas','warn'); return; }
+    fromMs = resDateMs(new Date(f + 'T00:00:00'));
+    toMs   = resDateMs(new Date(t + 'T00:00:00'));
+    if(fromMs > toMs){ toast('La fecha inicial debe ser anterior a la final','warn'); return; }
+    const fmt = dt => new Date(dt + 'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});
+    label = `${fmt(f)} → ${fmt(t)}`;
+  }
+
+  // Buscar en todas las hojas
+  const results = [];
+  for(const [sheetName, data] of Object.entries(allData)){
+    if(!data?.h?.length || !data?.r?.length) continue;
+    const dateCols = detectDateCols(data.h, data.r);
+    if(!dateCols.length) continue;
+
+    const matched = data.r.filter(row => {
+      return dateCols.some(ci => {
+        const d = resParseDate(row[ci]);
+        if(!d) return false;
+        const ms = resDateMs(d);
+        return ms >= fromMs && ms <= toMs;
+      });
+    });
+
+    if(matched.length) results.push({sheet:sheetName, headers:data.h, rows:matched, dateCols});
+  }
+
+  renderResumenResults(results, label);
+}
+
+function renderResumenResults(results, label){
+  const sumEl = document.getElementById('res-summary');
+  const cont  = document.getElementById('res-results');
+
+  if(!results.length){
+    sumEl.innerHTML = '';
+    cont.innerHTML  = `<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No se encontraron registros para <strong>${esc(label)}</strong>.<br>Verifica que las hojas tengan columnas de fecha con datos.</p></div>`;
+    return;
+  }
+
+  const totalRows = results.reduce((s,r) => s + r.rows.length, 0);
+  sumEl.innerHTML = `<span class="itag">${esc(label)}</span> &nbsp;${results.length} hoja${results.length>1?'s':''} &nbsp;·&nbsp; ${totalRows} registro${totalRows>1?'s':''}`;
+
+  const sheetsHtml = results.map(({sheet, headers, rows, dateCols}) => {
+    let tbl = `<div class="res-sheet-group">`;
+    tbl += `<div class="res-sheet-hdr"><span class="itag">${esc(sheet)}</span><span class="rcount">${rows.length} registro${rows.length>1?'s':''}</span></div>`;
+    tbl += `<div class="res-twrap"><table><thead><tr>`;
+    headers.forEach((col,i) => {
+      tbl += `<th${dateCols.includes(i)?' class="date-col"':''}>${esc(col||'')}</th>`;
+    });
+    tbl += `</tr></thead><tbody>`;
+    rows.forEach(row => {
+      tbl += '<tr>';
+      headers.forEach((hdr,i) => {
+        const v = row[i] ?? '';
+        const isDate = dateCols.includes(i);
+        const isSt   = isStatusCol(hdr);
+        const content = v !== '' ? (isSt ? statusPill(v) : esc(String(v))) : '<span class="ec">—</span>';
+        tbl += `<td${isDate?' class="date-hl"':''}>${content}</td>`;
+      });
+      tbl += '</tr>';
+    });
+    tbl += `</tbody></table></div></div>`;
+    return tbl;
+  }).join('');
+
+  cont.innerHTML = sheetsHtml;
+}
 </script>
 </body>
 </html>
