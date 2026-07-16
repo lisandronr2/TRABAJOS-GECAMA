@@ -3,12 +3,17 @@
   "short_name": "GECAMA",
   "description": "Control de Producción · Telecomunicaciones SSAA ENLIGHT",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f4f0",
   "theme_color": "#185FA5",
   "orientation": "any",
   "icons": [
-    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" },
+    { "src": "icon.svg",     "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
   ],
   "categories": ["productivity", "utilities"],
   "lang": "es"

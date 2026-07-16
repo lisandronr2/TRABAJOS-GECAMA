@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 const SHELL_CACHE  = 'gecama-shell-v4';
 const SHEETS_CACHE = 'gecama-sheets-v4';
-const SHELL_FILES  = ['./', './index.html', './manifest.json', './icon.svg'];
+const SHELL_FILES  = ['./', './index.html', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 
 // INSTALL — precargar shell
 self.addEventListener('install', e => {
