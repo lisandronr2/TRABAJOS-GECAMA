@@ -1054,9 +1054,15 @@ function updateStats(rows){
   const sr=document.getElementById('stats-row');
   if(!rows||!rows.length){sr.classList.remove('show');return;}
   const h=allData[curSheet]?.h||[];
+  const dateCols=detectDateCols(h, rows);
+  const dateSet=new Set(dateCols);
 
-  const numCols=[], cntCols=[];
+  const numCols=[], cntCols=[], dateColsInfo=[];
   h.forEach((name,i)=>{
+    if(dateSet.has(i)){
+      dateColsInfo.push({name,i});
+      return;
+    }
     const lc=(name||'').toLowerCase().trim();
     if(IDENTIFIER_COLS.has(lc)){
       cntCols.push({name,i});
@@ -1067,6 +1073,13 @@ function updateStats(rows){
   });
 
   const statsHtml=[
+    ...dateColsInfo.slice(0,2).map(({name,i})=>{
+      const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='').map(v=>{
+        const d=resParseDate(v);
+        return d ? resDateMs(d) : v;
+      })).size;
+      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">fechas</span></div></div>`;
+    }),
     ...cntCols.slice(0,3).map(({name,i})=>{
       const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='')).size;
       return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">únicos</span></div></div>`;
@@ -1346,9 +1359,9 @@ const RES_STATS_EXCLUDE = new Set(['inicio tramo','fin tramo','anillo']);
 function buildResStats(headers, rows, dateCols){
   const dateSet = new Set(dateCols || []);
   const chips = [];
-  const cntCols = [], numCols = [];
+  const cntCols = [], numCols = [], dateColsInfo = [];
   headers.forEach((name, i) => {
-    if(dateSet.has(i)) return;
+    if(dateSet.has(i)){ dateColsInfo.push({name,i}); return; }
     const lc = (name||'').toLowerCase().trim();
     if(RES_STATS_EXCLUDE.has(lc)) return;
     if(IDENTIFIER_COLS.has(lc)){ cntCols.push({name,i}); return; }
@@ -1356,6 +1369,14 @@ function buildResStats(headers, rows, dateCols){
     const vals = rows.map(r => r[i]??'').filter(v => v!=='');
     const nums = vals.map(v => parseFloat(v)).filter((n,idx) => !isNaN(n) && !/\//.test(vals[idx]));
     if(nums.length > rows.length * 0.3) numCols.push({name, nums});
+  });
+  dateColsInfo.slice(0,2).forEach(({name,i}) => {
+    const uniq = new Set(rows.map(r => r[i]??'').filter(v => v!=='').map(v => {
+      const d = resParseDate(v);
+      return d ? resDateMs(d) : v;
+    })).size;
+    if(uniq === 0) return;
+    chips.push(`<div class="res-stat"><div class="res-stat-lbl">${esc(name)}</div><div class="res-stat-val">${uniq}<span class="res-stat-unit">fechas</span></div></div>`);
   });
   cntCols.slice(0,3).forEach(({name,i}) => {
     const uniq = new Set(rows.map(r => r[i]??'').filter(v => v!=='')).size;
