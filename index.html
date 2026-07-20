@@ -613,8 +613,11 @@ function stripEmptyCols(h,r){
 // ═══════════════════════════════════════════════
 async function fetchSheet(name){
   const gid = window._GID_MAP && window._GID_MAP[name];
+  // Nota: se usa /export?format=csv (no /gviz/tq) para hojas con GID porque
+  // gviz fusiona las filas congeladas dentro del encabezado y las pierde como datos
+  // cuando la pestaña tiene más de 1 fila inmovilizada en su historial de edición.
   const url  = gid
-    ? `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`
+    ? `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`
     : `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
   const r = await fetch(url,{cache:'no-store'});
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -638,7 +641,7 @@ const GID_NAMES = {
   '1216856910': 'FUSIONES BESS',
   '1471015244': 'FTP BESS',
   '1340114912': 'ALIM.3X2,5 BESS',
-  '964532040':  null,
+  '964532040':  'MONTAJE CAMARAS',
   '742606042':  'MONTAJE CTS',
   '198782175':  'CTS FUSIONADOS',
   '1498469130': 'ACONDICIONAMIENTO CABLEADO CTS',
@@ -647,7 +650,7 @@ const GID_NAMES = {
 };
 
 // Hojas sin GID confirmado: se buscan por nombre exacto de pestaña
-const SHEETS_BY_NAME = ['MONTAJE CAMARAS'];
+const SHEETS_BY_NAME = [];
 
 // Columna de filtro por defecto según GID
 const SHEET_DEFAULT_FILTER = {
@@ -664,12 +667,11 @@ const SHEET_DEFAULT_FILTER = {
   '1832898941': 'ESTADO',
   '2006798926': 'ESTADO',
   '742606042':  null,
+  '964532040':  'CT',
 };
 
 // Filtro por defecto para hojas by-name
-const SHEET_DEFAULT_FILTER_BY_NAME = {
-  'MONTAJE CAMARAS': 'CT',
-};
+const SHEET_DEFAULT_FILTER_BY_NAME = {};
 
 async function fetchSheetNames(){
   const found = [];
@@ -679,7 +681,7 @@ async function fetchSheetNames(){
     if(!name) continue;
     try{
       const r = await fetch(
-        `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
+        `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`,
         {cache:'no-store'}
       );
       if(!r.ok) continue;
