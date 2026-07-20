@@ -611,13 +611,20 @@ function stripEmptyCols(h,r){
 // ═══════════════════════════════════════════════
 // FETCH HOJA (por GID o por nombre)
 // ═══════════════════════════════════════════════
+// GIDs que deben leerse con /export?format=csv en vez de /gviz/tq: la hoja
+// tiene más de 1 fila inmovilizada y gviz fusiona esas filas dentro del
+// encabezado, perdiendo filas de datos reales (caso MONTAJE CAMARAS).
+// OJO: otras hojas (ej. FTP SSAA, FUSIONES SSP-SS2) tienen filas de título/
+// blanco antes del encabezado real que gviz SÍ debe seguir fusionando, así
+// que este cambio de endpoint no debe aplicarse de forma global.
+const GIDS_EXPORT_CSV = new Set(['964532040']);
+
 async function fetchSheet(name){
   const gid = window._GID_MAP && window._GID_MAP[name];
-  // Nota: se usa /export?format=csv (no /gviz/tq) para hojas con GID porque
-  // gviz fusiona las filas congeladas dentro del encabezado y las pierde como datos
-  // cuando la pestaña tiene más de 1 fila inmovilizada en su historial de edición.
   const url  = gid
-    ? `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`
+    ? (GIDS_EXPORT_CSV.has(gid)
+        ? `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`
+        : `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`)
     : `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
   const r = await fetch(url,{cache:'no-store'});
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -681,7 +688,7 @@ async function fetchSheetNames(){
     if(!name) continue;
     try{
       const r = await fetch(
-        `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`,
+        `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
         {cache:'no-store'}
       );
       if(!r.ok) continue;
