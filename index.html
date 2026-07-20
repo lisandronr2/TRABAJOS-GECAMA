@@ -431,6 +431,12 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="res-ctrl">
     <div class="ctrl">
+      <label>Hoja</label>
+      <select id="res-hoja">
+        <option value="">Todas las hojas</option>
+      </select>
+    </div>
+    <div class="ctrl">
       <label>Tipo de búsqueda</label>
       <select id="res-tipo" onchange="toggleResTipo()">
         <option value="fecha">Fecha exacta</option>
@@ -1262,6 +1268,17 @@ init().catch(console.error);
 // RESUMEN POR FECHA
 // ═══════════════════════════════════════════════
 function openResumen(){
+  // Populate sheet selector
+  const sel = document.getElementById('res-hoja');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Todas las hojas</option>';
+  Object.keys(allData).sort((a,b)=>a.localeCompare(b,'es')).forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  if(prev) sel.value = prev;
   document.getElementById('resumen-overlay').classList.add('show');
 }
 function closeResumen(){
@@ -1341,9 +1358,11 @@ function runResumen(){
     label = `${fmt(f)} → ${fmt(t)}`;
   }
 
-  // Buscar en todas las hojas
+  // Buscar en la hoja seleccionada o en todas
+  const hojaFiltro = document.getElementById('res-hoja').value;
   const results = [];
   for(const [sheetName, data] of Object.entries(allData)){
+    if(hojaFiltro && sheetName !== hojaFiltro) continue;
     if(!data?.h?.length || !data?.r?.length) continue;
     const dateCols = detectDateCols(data.h, data.r);
     if(!dateCols.length) continue;
