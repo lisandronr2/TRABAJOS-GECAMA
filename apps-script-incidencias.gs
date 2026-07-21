@@ -47,7 +47,8 @@ function listIncidencias_() {
     parcela: headers.indexOf('PARCELA'),
     ct: headers.indexOf('CT'),
     descripcion: headers.indexOf('DESCRIPCION'),
-    estado: headers.indexOf('ESTADO')
+    estado: headers.indexOf('ESTADO'),
+    fechaResuelta: headers.indexOf('FECHA RESOLUCION')
   };
 
   const items = [];
@@ -60,7 +61,8 @@ function listIncidencias_() {
       parcela: row[idx.parcela],
       ct: row[idx.ct],
       descripcion: row[idx.descripcion],
-      estado: row[idx.estado]
+      estado: row[idx.estado],
+      fechaResuelta: idx.fechaResuelta >= 0 ? formatCell_(row[idx.fechaResuelta]) : ''
     });
   }
   return { items };
@@ -77,6 +79,18 @@ function updateEstado_(row, estado) {
   if (row < 2 || row > sh.getLastRow()) throw new Error('Fila inválida: ' + row);
 
   sh.getRange(row, col).setValue(estado);
+
+  // Columna FECHA RESOLUCION: se crea sola si todavía no existe
+  let resCol = headers.indexOf('FECHA RESOLUCION') + 1;
+  if (resCol < 1) {
+    resCol = sh.getLastColumn() + 1;
+    sh.getRange(1, resCol).setValue('FECHA RESOLUCION');
+  }
+  if (String(estado).toUpperCase().trim() === 'RESUELTA') {
+    sh.getRange(row, resCol).setValue(new Date());
+  } else {
+    sh.getRange(row, resCol).setValue('');
+  }
 }
 
 function formatCell_(v) {
