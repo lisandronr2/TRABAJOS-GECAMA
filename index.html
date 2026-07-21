@@ -296,6 +296,20 @@ tr:last-child td{border-bottom:none}
 .res-action-btn--excel{background:#1b7a4a}
 .res-action-btn--excel:hover{background:#155c38}
 
+/* ── INCIDENCIAS ── */
+.inc-tabbtn{height:34px;padding:0 16px;border:1px solid var(--border-s);border-radius:var(--r);background:var(--card2);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.inc-tabbtn:hover{background:var(--card)}
+.inc-tabbtn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.inc-list{display:flex;flex-direction:column;gap:10px}
+.inc-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.inc-card-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.inc-card-meta{font-size:12px;color:var(--t3);display:flex;gap:14px;flex-wrap:wrap}
+.inc-card-meta strong{color:var(--text)}
+.inc-card-desc{font-size:13px;color:var(--text);white-space:pre-wrap;line-height:1.4}
+.inc-btn-resolver{background:var(--blue);color:#fff;border:none;border-radius:var(--r);padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.inc-btn-resolver:hover{background:var(--blue-dk)}
+.inc-btn-resolver:disabled{opacity:.5;cursor:not-allowed}
+
 /* ── PRINT ── */
 @media print{
   /* Default print (main table) */
@@ -375,6 +389,7 @@ tr:last-child td{border-bottom:none}
     <button class="btn-h" id="btn-sync" onclick="syncNow(true)" title="Sincronizar ahora">↻ Sync</button>
     <button class="btn-h" onclick="window.print()" title="Imprimir / Exportar PDF">🖨</button>
     <button class="btn-h" onclick="openResumen()" title="Resumen por fecha">📅 Resumen</button>
+    <button class="btn-h" onclick="openIncidencias()" title="Incidencias diarias">🚨 Incidencias</button>
     <button class="btn-h" id="btn-theme" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
   </div>
 </div>
@@ -482,6 +497,27 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- ── INCIDENCIAS OVERLAY ── -->
+<div class="resumen-overlay" id="incidencias-overlay">
+  <div class="res-hdr">
+    <div class="res-hdr-ico">🚨</div>
+    <div class="res-hdr-title">INCIDENCIAS DIARIAS</div>
+    <button class="res-hdr-close" onclick="closeIncidencias()">✕ Cerrar</button>
+  </div>
+  <div class="res-ctrl">
+    <button class="inc-tabbtn active" id="inc-tab-todas" onclick="switchIncTab('todas')">📋 Ver Todas</button>
+    <button class="inc-tabbtn" id="inc-tab-resueltas" onclick="switchIncTab('resueltas')">✅ Solo Resueltas</button>
+  </div>
+  <div class="res-summary-bar" id="inc-summary"></div>
+  <div class="res-results" id="inc-results">
+    <div class="state">
+      <div class="ico">🚨</div>
+      <h3>Incidencias diarias</h3>
+      <p>Cargando incidencias…</p>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════
 // CONFIG
@@ -505,6 +541,8 @@ const STATUS_MAP = {
   'SIN TENDER' : 'red',
   'CANCELADO'  : 'red',
   'PARADO'     : 'red',
+  'RESUELTA'   : 'green',
+  'NO RESUELTA': 'red',
 };
 
 // ═══════════════════════════════════════════════
@@ -1480,6 +1518,113 @@ function renderResumenResults(results, label){
   }).join('');
 
   cont.innerHTML = sheetsHtml;
+}
+
+// ═══════════════════════════════════════════════
+// INCIDENCIAS DIARIAS
+// ═══════════════════════════════════════════════
+// Pega aquí la URL "/exec" del Google Apps Script (ver instrucciones de despliegue).
+const INCIDENCIAS_API_URL = '';
+
+let incItems = null;   // última carga desde el Apps Script
+let incTab = 'todas';  // 'todas' | 'resueltas'
+let incLoading = false;
+
+function openIncidencias(){
+  document.getElementById('incidencias-overlay').classList.add('show');
+  loadIncidencias();
+}
+function closeIncidencias(){
+  document.getElementById('incidencias-overlay').classList.remove('show');
+}
+
+function switchIncTab(tab){
+  incTab = tab;
+  document.getElementById('inc-tab-todas').classList.toggle('active', tab === 'todas');
+  document.getElementById('inc-tab-resueltas').classList.toggle('active', tab === 'resueltas');
+  renderIncidencias();
+}
+
+async function loadIncidencias(){
+  if(incLoading) return;
+  const cont = document.getElementById('inc-results');
+  const sumEl = document.getElementById('inc-summary');
+  if(!INCIDENCIAS_API_URL){
+    sumEl.innerHTML = '';
+    cont.innerHTML = `<div class="state"><div class="ico">⚙️</div><h3>Falta configurar</h3><p>Define <strong>INCIDENCIAS_API_URL</strong> con la URL del Apps Script para poder cargar y actualizar las incidencias.</p></div>`;
+    return;
+  }
+  incLoading = true;
+  cont.innerHTML = `<div class="state"><div class="spin-ring"></div><h3>Cargando…</h3><p>Obteniendo incidencias del Sheet.</p></div>`;
+  try{
+    const r = await fetch(INCIDENCIAS_API_URL, {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    incItems = data.items || [];
+    renderIncidencias();
+  }catch(e){
+    incItems = null;
+    sumEl.innerHTML = '';
+    cont.innerHTML = `<div class="state"><div class="ico">⚠️</div><h3>Error al cargar</h3><p>${esc(e.message)}</p></div>`;
+  }finally{
+    incLoading = false;
+  }
+}
+
+function renderIncidencias(){
+  const cont = document.getElementById('inc-results');
+  const sumEl = document.getElementById('inc-summary');
+  if(!incItems) return;
+
+  const items = incTab === 'resueltas'
+    ? incItems.filter(it => String(it.estado||'').toUpperCase().trim() === 'RESUELTA')
+    : incItems;
+
+  if(!items.length){
+    sumEl.innerHTML = '';
+    const msg = incTab === 'resueltas' ? 'Aún no hay incidencias resueltas.' : 'No hay incidencias registradas.';
+    cont.innerHTML = `<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>${msg}</p></div>`;
+    return;
+  }
+
+  sumEl.innerHTML = `${items.length} incidencia${items.length>1?'s':''}`;
+
+  cont.innerHTML = `<div class="inc-list">${items.map(it => {
+    const resuelta = String(it.estado||'').toUpperCase().trim() === 'RESUELTA';
+    return `<div class="inc-card">
+      <div class="inc-card-top">
+        <div class="inc-card-meta">
+          <span><strong>${esc(it.fecha||'—')}</strong></span>
+          <span>Parcela: <strong>${esc(it.parcela??'—')}</strong></span>
+          <span>CT: <strong>${esc(it.ct??'—')}</strong></span>
+        </div>
+        ${statusPill(it.estado||'')}
+      </div>
+      <div class="inc-card-desc">${esc(it.descripcion||'')}</div>
+      ${!resuelta ? `<div><button class="inc-btn-resolver" onclick="resolverIncidencia(${it.row}, this)">✅ Marcar como RESUELTA</button></div>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function resolverIncidencia(row, btn){
+  if(!INCIDENCIAS_API_URL) return;
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try{
+    const r = await fetch(INCIDENCIAS_API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({action:'update', row, estado:'RESUELTA'})
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    incItems = data.items || incItems;
+    renderIncidencias();
+    toast('✅ Incidencia marcada como RESUELTA','ok');
+  }catch(e){
+    toast('⚠️ '+e.message,'warn');
+    if(btn){ btn.disabled = false; btn.textContent = '✅ Marcar como RESUELTA'; }
+  }
 }
 
 function escXml(s){
