@@ -315,13 +315,13 @@ tr:last-child td{border-bottom:none}
 /* ── PRINT ── */
 @media print{
   /* Default print (main table) */
-  body:not(.print-resumen) .resumen-overlay{display:none!important}
-  body:not(.print-resumen) .hdr{background:var(--blue)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  body:not(.print-resumen) .ctrl-bar,body:not(.print-resumen) .info-bar,body:not(.print-resumen) .hacts,body:not(.print-resumen) .btn-rst,body:not(.print-resumen) #b-update,body:not(.print-resumen) #b-offline,body:not(.print-resumen) #b-error,body:not(.print-resumen) .toast,body:not(.print-resumen) .foot{display:none!important}
-  body:not(.print-resumen) .rwrap{overflow:visible}
-  body:not(.print-resumen) .twrap{overflow:visible}
-  body:not(.print-resumen) thead{position:static}
-  body:not(.print-resumen) tr{page-break-inside:avoid}
+  body:not(.print-resumen):not(.print-incidencias) .resumen-overlay{display:none!important}
+  body:not(.print-resumen):not(.print-incidencias) .hdr{background:var(--blue)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body:not(.print-resumen):not(.print-incidencias) .ctrl-bar,body:not(.print-resumen):not(.print-incidencias) .info-bar,body:not(.print-resumen):not(.print-incidencias) .hacts,body:not(.print-resumen):not(.print-incidencias) .btn-rst,body:not(.print-resumen):not(.print-incidencias) #b-update,body:not(.print-resumen):not(.print-incidencias) #b-offline,body:not(.print-resumen):not(.print-incidencias) #b-error,body:not(.print-resumen):not(.print-incidencias) .toast,body:not(.print-resumen):not(.print-incidencias) .foot{display:none!important}
+  body:not(.print-resumen):not(.print-incidencias) .rwrap{overflow:visible}
+  body:not(.print-resumen):not(.print-incidencias) .twrap{overflow:visible}
+  body:not(.print-resumen):not(.print-incidencias) thead{position:static}
+  body:not(.print-resumen):not(.print-incidencias) tr{page-break-inside:avoid}
 
   /* Resumen print */
   body.print-resumen .hdr,
@@ -347,6 +347,31 @@ tr:last-child td{border-bottom:none}
   body.print-resumen .res-twrap{overflow:visible!important}
   body.print-resumen .res-twrap td{white-space:normal!important;max-width:none!important}
   body.print-resumen .res-sheet-group{break-inside:avoid;page-break-inside:avoid;margin-bottom:16px}
+
+  /* Incidencias print */
+  body.print-incidencias .hdr,
+  body.print-incidencias .ctrl-bar,
+  body.print-incidencias .info-bar,
+  body.print-incidencias .stats-row,
+  body.print-incidencias .rwrap,
+  body.print-incidencias .foot,
+  body.print-incidencias .toast,
+  body.print-incidencias .banner,
+  body.print-incidencias #b-error,
+  body.print-incidencias .res-hdr-close,
+  body.print-incidencias .inc-tabbtn,
+  body.print-incidencias .inc-btn-resolver,
+  body.print-incidencias .res-ctrl,
+  body.print-incidencias #inc-action-bar{display:none!important}
+  body.print-incidencias #incidencias-overlay{
+    position:static!important;transform:none!important;
+    overflow:visible!important;height:auto!important;z-index:auto!important
+  }
+  body.print-incidencias .res-results{
+    overflow:visible!important;max-height:none!important;
+    height:auto!important;padding:8px!important
+  }
+  body.print-incidencias .inc-card{break-inside:avoid;page-break-inside:avoid}
   html,body{height:auto!important;overflow:visible!important}
 }
 
@@ -507,10 +532,13 @@ tr:last-child td{border-bottom:none}
     <button class="res-hdr-close" onclick="closeIncidencias()">✕ Cerrar</button>
   </div>
   <div class="res-ctrl">
-    <button class="inc-tabbtn active" id="inc-tab-todas" onclick="switchIncTab('todas')">📋 Ver Todas</button>
+    <button class="inc-tabbtn active" id="inc-tab-no-resueltas" onclick="switchIncTab('no-resueltas')">🔴 No Resueltas</button>
     <button class="inc-tabbtn" id="inc-tab-resueltas" onclick="switchIncTab('resueltas')">✅ Solo Resueltas</button>
   </div>
   <div class="res-summary-bar" id="inc-summary"></div>
+  <div class="res-action-bar" id="inc-action-bar">
+    <button class="res-action-btn" onclick="printIncidencias()">🖨 Imprimir / PDF</button>
+  </div>
   <div class="res-results" id="inc-results">
     <div class="state">
       <div class="ico">🚨</div>
@@ -1528,8 +1556,8 @@ function renderResumenResults(results, label){
 // Pega aquí la URL "/exec" del Google Apps Script (ver instrucciones de despliegue).
 const INCIDENCIAS_API_URL = 'https://script.google.com/macros/s/AKfycbwJ1O7WWohkrh8_Pv5bBV6vVczjjWgpnoFgtDTTC4MP8GI1EOOlPe7F3QgIzXsXpwQG/exec';
 
-let incItems = null;   // última carga desde el Apps Script
-let incTab = 'todas';  // 'todas' | 'resueltas'
+let incItems = null;         // última carga desde el Apps Script
+let incTab = 'no-resueltas'; // 'no-resueltas' | 'resueltas'
 let incLoading = false;
 
 function openIncidencias(){
@@ -1542,7 +1570,7 @@ function closeIncidencias(){
 
 function switchIncTab(tab){
   incTab = tab;
-  document.getElementById('inc-tab-todas').classList.toggle('active', tab === 'todas');
+  document.getElementById('inc-tab-no-resueltas').classList.toggle('active', tab === 'no-resueltas');
   document.getElementById('inc-tab-resueltas').classList.toggle('active', tab === 'resueltas');
   renderIncidencias();
 }
@@ -1581,11 +1609,11 @@ function renderIncidencias(){
 
   const items = incTab === 'resueltas'
     ? incItems.filter(it => String(it.estado||'').toUpperCase().trim() === 'RESUELTA')
-    : incItems;
+    : incItems.filter(it => String(it.estado||'').toUpperCase().trim() !== 'RESUELTA');
 
   if(!items.length){
     sumEl.innerHTML = '';
-    const msg = incTab === 'resueltas' ? 'Aún no hay incidencias resueltas.' : 'No hay incidencias registradas.';
+    const msg = incTab === 'resueltas' ? 'Aún no hay incidencias resueltas.' : '🎉 No hay incidencias pendientes.';
     cont.innerHTML = `<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>${msg}</p></div>`;
     return;
   }
@@ -1652,8 +1680,15 @@ function printResumen(){
   window.print();
 }
 
+function printIncidencias(){
+  if(!incItems) return;
+  document.body.classList.add('print-incidencias');
+  window.print();
+}
+
 window.addEventListener('afterprint', function(){
   document.body.classList.remove('print-resumen');
+  document.body.classList.remove('print-incidencias');
 });
 
 function downloadExcel(){
