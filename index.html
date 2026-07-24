@@ -1133,12 +1133,50 @@ function updateInfoBar(){
   bar.innerHTML=html; bar.classList.add('show');
 }
 
+// Detecta columnas "Longitud" (total) y "Longitud tendida" en una hoja.
+// Solo se consideran un par válido si ambas están presentes.
+function findLongitudCols(headers){
+  const totalIdx = headers.findIndex(h=>{
+    const lc=(h||'').toLowerCase();
+    return lc.includes('longitud') && !lc.includes('tendid');
+  });
+  const tendidaIdx = headers.findIndex(h=>{
+    const lc=(h||'').toLowerCase();
+    return lc.includes('longitud') && lc.includes('tendid');
+  });
+  if(totalIdx<0 || tendidaIdx<0) return null;
+  return {totalIdx, tendidaIdx};
+}
+
+// Construye los chips de Longitud / Longitud Tendida / Faltante Tendido.
+// `prefix` es la clase base de los chips ('stat' o 'res-stat').
+function buildLongitudChips(headers, rows, prefix){
+  const cols = findLongitudCols(headers);
+  if(!cols) return {chips:[], used:new Set()};
+  const sumCol = i => rows.reduce((s,r)=>{
+    const n=parseFloat(r[i]);
+    return s+(isNaN(n)?0:n);
+  },0);
+  const totalSum   = sumCol(cols.totalIdx);
+  const tendidaSum = sumCol(cols.tendidaIdx);
+  const faltante   = totalSum - tendidaSum;
+  const fmt = n => (n%1===0 ? n.toLocaleString('es-ES') : n.toFixed(1));
+  const chip = (lbl,val) => `<div class="${prefix}"><div class="${prefix}-lbl">${esc(lbl)}</div><div class="${prefix}-val">${fmt(val)}<span class="${prefix}-unit"> m</span></div></div>`;
+  const chips = [
+    chip(headers[cols.totalIdx], totalSum),
+    chip(headers[cols.tendidaIdx], tendidaSum),
+    chip('Faltante Tendido', faltante)
+  ];
+  return {chips, used: new Set([cols.totalIdx, cols.tendidaIdx])};
+}
+
 function updateStats(rows){
   const sr=document.getElementById('stats-row');
   if(!rows||!rows.length){sr.classList.remove('show');return;}
   const h=allData[curSheet]?.h||[];
   const dateCols=detectDateCols(h, rows);
   const dateSet=new Set(dateCols);
+  const {chips:longitudChips, used:longitudUsed} = buildLongitudChips(h, rows, 'stat');
 
   const numCols=[], cntCols=[], dateColsInfo=[];
   h.forEach((name,i)=>{
@@ -1146,6 +1184,7 @@ function updateStats(rows){
       dateColsInfo.push({name,i});
       return;
     }
+    if(longitudUsed.has(i)) return;
     const lc=(name||'').toLowerCase().trim();
     if(IDENTIFIER_COLS.has(lc)){
       cntCols.push({name,i});
@@ -1156,6 +1195,7 @@ function updateStats(rows){
   });
 
   const statsHtml=[
+    ...longitudChips,
     ...dateColsInfo.slice(0,2).map(({name,i})=>{
       const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='').map(v=>{
         const d=resParseDate(v);
@@ -1455,9 +1495,12 @@ const RES_STATS_EXCLUDE = new Set(['inicio tramo','fin tramo','anillo']);
 function buildResStats(headers, rows, dateCols){
   const dateSet = new Set(dateCols || []);
   const chips = [];
+  const {chips:longitudChips, used:longitudUsed} = buildLongitudChips(headers, rows, 'res-stat');
+  chips.push(...longitudChips);
   const cntCols = [], numCols = [], dateColsInfo = [];
   headers.forEach((name, i) => {
     if(dateSet.has(i)){ dateColsInfo.push({name,i}); return; }
+    if(longitudUsed.has(i)) return;
     const lc = (name||'').toLowerCase().trim();
     if(RES_STATS_EXCLUDE.has(lc)) return;
     if(IDENTIFIER_COLS.has(lc)){ cntCols.push({name,i}); return; }
