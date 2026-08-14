@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════
 // SERVICE WORKER — GECAMA PWA v4
 // ═══════════════════════════════════════════════════════════
-const SHELL_CACHE  = 'gecama-shell-v4';
-const SHEETS_CACHE = 'gecama-sheets-v4';
+const SHELL_CACHE  = 'gecama-shell-v5';
+const SHEETS_CACHE = 'gecama-sheets-v5';
 const SHELL_FILES  = ['./', './index.html', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 
 // INSTALL — precargar shell
@@ -30,18 +30,15 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // Shell de la app: Cache First (instantáneo) + actualizar en bg
+  // Shell de la app: Network First (siempre la última versión) + caché como respaldo offline
   if (isShell(url)) {
     e.respondWith(
-      caches.match(e.request).then(cached => {
-        const network = fetch(e.request).then(resp => {
-          if (resp && resp.status === 200 && resp.type !== 'opaque') {
-            caches.open(SHELL_CACHE).then(c => c.put(e.request, resp.clone()));
-          }
-          return resp;
-        }).catch(() => null);
-        return cached || network;
-      })
+      fetch(e.request).then(resp => {
+        if (resp && resp.status === 200 && resp.type !== 'opaque') {
+          caches.open(SHELL_CACHE).then(c => c.put(e.request, resp.clone()));
+        }
+        return resp;
+      }).catch(() => caches.match(e.request))
     );
     return;
   }
