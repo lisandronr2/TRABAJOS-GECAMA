@@ -314,8 +314,16 @@ tr:last-child td{border-bottom:none}
 
 /* ── PRINT ── */
 @media print{
-  /* Default print (main table) */
-  body:not(.print-resumen):not(.print-incidencias) .resumen-overlay{display:none!important}
+  /* Default print (main table) — ocultar TODOS los overlays salvo el activo */
+  body:not(.print-resumen) #resumen-overlay,
+  body:not(.print-incidencias) #incidencias-overlay {
+    display:none!important;
+    visibility:hidden!important;
+    position:absolute!important;
+    top:-99999px!important;
+    transform:none!important;
+  }
+  body:not(.print-resumen):not(.print-incidencias) .resumen-overlay{display:none!important;visibility:hidden!important}
   body:not(.print-resumen):not(.print-incidencias) .hdr{background:var(--blue)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body:not(.print-resumen):not(.print-incidencias) .ctrl-bar,body:not(.print-resumen):not(.print-incidencias) .info-bar,body:not(.print-resumen):not(.print-incidencias) .hacts,body:not(.print-resumen):not(.print-incidencias) .btn-rst,body:not(.print-resumen):not(.print-incidencias) #b-update,body:not(.print-resumen):not(.print-incidencias) #b-offline,body:not(.print-resumen):not(.print-incidencias) #b-error,body:not(.print-resumen):not(.print-incidencias) .toast,body:not(.print-resumen):not(.print-incidencias) .foot{display:none!important}
   body:not(.print-resumen):not(.print-incidencias) .rwrap{overflow:visible}
@@ -414,7 +422,7 @@ tr:last-child td{border-bottom:none}
   <div class="hacts">
     <div class="sbadge"><div class="sdot" id="sdot"></div><span id="slbl">Iniciando…</span></div>
     <button class="btn-h" id="btn-sync" onclick="syncNow(true)" title="Sincronizar ahora">↻ Sync</button>
-    <button class="btn-h" onclick="window.print()" title="Imprimir / Exportar PDF">🖨</button>
+    <button class="btn-h" onclick="printMain()" title="Imprimir / Exportar PDF">🖨</button>
     <button class="btn-h" onclick="openResumen()" title="Resumen por fecha">📅 Resumen</button>
     <button class="btn-h" onclick="openIncidencias()" title="Incidencias diarias">🚨 Incidencias</button>
     <button class="btn-h" id="btn-theme" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
@@ -424,9 +432,16 @@ tr:last-child td{border-bottom:none}
 <div class="ctrl-bar">
   <div class="ctrl">
     <label>Hoja</label>
-    <select id="sel-hoja" onchange="onHoja()">
-      <option value="">— Cargando… —</option>
-    </select>
+    <div class="ms-wrap" id="ms-wrap-hoja">
+      <button class="ms-btn" id="ms-btn-hoja" type="button" onclick="toggleMsDropHoja(event)">— Cargando… —</button>
+      <div class="ms-drop" id="ms-drop-hoja">
+        <div class="ms-acts">
+          <button type="button" onclick="msHojaAll()">Todas</button>
+          <button type="button" onclick="msHojaNone()">Ninguna</button>
+        </div>
+        <div class="ms-list" id="ms-list-hoja"></div>
+      </div>
+    </div>
   </div>
   <div class="ctrl">
     <label>Filtrar por</label>
@@ -579,7 +594,7 @@ const STATUS_MAP = {
 // ESTADO
 // ═══════════════════════════════════════════════
 let db = null, allData = {}, knownSheets = [], newSheets = new Set();
-let curSheet = '', curCol = -1, curVals = new Set(), sortSt = {col:-1,asc:true};
+let curSheets = new Set(), curCol = -1, curVals = new Set(), sortStBySheet = {};
 let syncing = false, syncTimer = null, pendingSW = null, toastTmr = null;
 let APP_VERSION = '';
 
@@ -850,8 +865,8 @@ async function syncNow(manual=false){
 
     buildSheetSelector();
     setFoot(ts,false);
-    if(curSheet && !allData[curSheet]) resetAll();
-    else if(curSheet){ renderTable(filtered()); refreshValSel(); }
+    if(curSheets.size && [...curSheets].some(n=>!allData[n])) resetAll();
+    else if(curSheets.size){ renderAllTables(); refreshValSel(); }
 
     const nn = newSheets.size;
     if(errs.length && Object.keys(nd).length){
@@ -900,88 +915,165 @@ async function loadCache(){
 // SELECTORES
 // ═══════════════════════════════════════════════
 function buildSheetSelector(){
-  const sel  = document.getElementById('sel-hoja');
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">— Selecciona hoja —</option>';
+  const list = document.getElementById('ms-list-hoja');
+  const prevSel = new Set(curSheets);
+  list.innerHTML = '';
   const sheets = Object.keys(allData).sort((a,b)=>a.localeCompare(b,'es'));
   sheets.forEach(n=>{
-    const o = document.createElement('option');
-    o.value = n;
-    o.textContent = n + (newSheets.has(n)?' 🆕':'');
-    sel.appendChild(o);
+    const lbl=document.createElement('label');
+    lbl.className='ms-item';
+    const checked = prevSel.has(n) ? ' checked' : '';
+    lbl.innerHTML=`<input type="checkbox" value="${esc(n)}"${checked} onchange="onHoja()"><span>${esc(n)}${newSheets.has(n)?' 🆕':''}</span>`;
+    list.appendChild(lbl);
   });
+  document.getElementById('ms-btn-hoja').disabled = !sheets.length;
 
-  if(prev && allData[prev]){
-    sel.value = prev;
+  const kept = [...prevSel].filter(n=>allData[n]);
+  if(kept.length){
+    curSheets = new Set(kept);
+    syncHojaCheckboxes();
+    onHoja();
   } else if(sheets.length === 1){
-    // Auto-seleccionar si hay una sola hoja
-    sel.value = sheets[0];
+    curSheets = new Set(sheets);
+    syncHojaCheckboxes();
     onHoja();
   } else {
+    curSheets = new Set();
+    updateHojaBtn();
     showWelcome();
   }
 }
 
+function syncHojaCheckboxes(){
+  document.querySelectorAll('#ms-list-hoja input[type=checkbox]').forEach(cb=>{
+    cb.checked = curSheets.has(cb.value);
+    cb.closest('.ms-item').classList.toggle('sel', cb.checked);
+  });
+  updateHojaBtn();
+}
+
+function updateHojaBtn(){
+  const btn=document.getElementById('ms-btn-hoja');
+  const n=curSheets.size;
+  if(!Object.keys(allData).length) btn.textContent='— Cargando… —';
+  else if(n===0) btn.textContent='— Selecciona hoja —';
+  else if(n===1) btn.textContent=[...curSheets][0];
+  else btn.textContent=`${n} hojas seleccionadas`;
+}
+
+function toggleMsDropHoja(e){
+  e?.stopPropagation();
+  document.getElementById('ms-drop-hoja').classList.toggle('open');
+}
+function msHojaAll(){
+  document.querySelectorAll('#ms-list-hoja input[type=checkbox]').forEach(cb=>{
+    cb.checked=true; cb.closest('.ms-item').classList.add('sel');
+  });
+  onHoja();
+}
+function msHojaNone(){
+  document.querySelectorAll('#ms-list-hoja input[type=checkbox]').forEach(cb=>{
+    cb.checked=false; cb.closest('.ms-item').classList.remove('sel');
+  });
+  onHoja();
+}
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#ms-wrap-hoja')) document.getElementById('ms-drop-hoja')?.classList.remove('open');
+});
+
+function commonColumns(){
+  const sheets=[...curSheets];
+  if(!sheets.length) return [];
+  let common = (allData[sheets[0]]?.h||[]).filter(h=>h);
+  for(let i=1;i<sheets.length;i++){
+    const set = new Set(allData[sheets[i]]?.h||[]);
+    common = common.filter(h=>set.has(h));
+  }
+  return common;
+}
+
 function onHoja(){
-  curSheet = document.getElementById('sel-hoja').value;
-  curCol=-1; curVals=new Set(); sortSt={col:-1,asc:true};
+  curSheets = new Set([...document.querySelectorAll('#ms-list-hoja input[type=checkbox]:checked')].map(cb=>cb.value));
+  document.querySelectorAll('#ms-list-hoja .ms-item').forEach(item=>{
+    item.classList.toggle('sel', item.querySelector('input').checked);
+  });
+  updateHojaBtn();
+  curCol=''; curVals=new Set();
   const sc=document.getElementById('sel-col');
   sc.disabled=true;
   sc.innerHTML='<option value="">— Elige columna —</option>';
   msReset();
   document.getElementById('btn-rst').style.display='none';
-  if(!curSheet || !allData[curSheet]){ showWelcome(); return; }
-  const h = allData[curSheet].h;
-  h.forEach((hdr,i)=>{
+  if(!curSheets.size){ showWelcome(); return; }
+  const cols = commonColumns();
+  cols.forEach(name=>{
     const o=document.createElement('option');
-    o.value=i; o.textContent=hdr||`Col ${i+1}`;
+    o.value=name; o.textContent=name;
     sc.appendChild(o);
   });
-  sc.disabled=false;
+  sc.disabled = !cols.length;
   updateInfoBar();
-  renderTable(allData[curSheet].r, h);
-  updateStats(allData[curSheet].r);
+  renderAllTables();
+  updateStats();
   autoSelectFilterCol();
 }
 
 function onCol(){
-  curCol = parseInt(document.getElementById('sel-col').value);
-  if(isNaN(curCol)) return;
+  curCol = document.getElementById('sel-col').value;
   curVals = new Set();
-  const rows = allData[curSheet]?.r||[];
-  const vals = [...new Set(rows.map(r=>r[curCol]??'').filter(v=>v!==''))].sort();
-  msBuild(vals);
+  const vals = new Set();
+  curSheets.forEach(sh=>{
+    const h=allData[sh]?.h||[];
+    const idx=h.indexOf(curCol);
+    if(idx<0) return;
+    (allData[sh]?.r||[]).forEach(r=>{ const v=r[idx]??''; if(v!=='') vals.add(v); });
+  });
+  msBuild([...vals].sort());
   updateInfoBar();
-  renderTable(filtered());
-  updateStats(filtered());
+  renderAllTables();
+  updateStats();
+}
+
+function sheetFiltered(sheetName){
+  const d = allData[sheetName];
+  if(!d) return [];
+  if(!curCol || !curVals.size) return d.r;
+  const idx = d.h.indexOf(curCol);
+  if(idx<0) return d.r;
+  return d.r.filter(row=>curVals.has(row[idx]??''));
 }
 
 function filtered(){
-  if(!curSheet || !allData[curSheet]) return[];
-  const r = allData[curSheet].r;
-  if(curCol<0 || !curVals.size) return r;
-  return r.filter(row=>curVals.has(row[curCol]??''));
+  let out=[];
+  curSheets.forEach(sh=>{ out=out.concat(sheetFiltered(sh)); });
+  return out;
 }
 
 function resetAll(){
-  curCol=-1; curVals=new Set(); sortSt={col:-1,asc:true};
+  curCol=''; curVals=new Set();
   document.getElementById('sel-col').value='';
   msReset();
   document.getElementById('btn-rst').style.display='none';
   document.getElementById('info-bar').classList.remove('show');
-  if(curSheet && allData[curSheet]){
-    renderTable(allData[curSheet].r, allData[curSheet].h);
-    updateStats(allData[curSheet].r);
+  if(curSheets.size){
+    renderAllTables();
+    updateStats();
   } else {
     document.getElementById('stats-row').classList.remove('show');
   }
 }
 
 function refreshValSel(){
-  if(curCol<0) return;
+  if(!curCol) return;
   const prev = new Set(curVals);
-  const vals = [...new Set((allData[curSheet]?.r||[]).map(r=>r[curCol]??'').filter(v=>v!==''))].sort();
-  msBuild(vals);
+  const vals = new Set();
+  curSheets.forEach(sh=>{
+    const h=allData[sh]?.h||[];
+    const idx=h.indexOf(curCol);
+    if(idx<0) return;
+    (allData[sh]?.r||[]).forEach(r=>{ const v=r[idx]??''; if(v!=='') vals.add(v); });
+  });
+  msBuild([...vals].sort());
   // restaurar selección previa
   document.querySelectorAll('#ms-list input[type=checkbox]').forEach(cb=>{
     if(prev.has(cb.value)){ cb.checked=true; cb.closest('.ms-item').classList.add('sel'); }
@@ -1032,10 +1124,9 @@ function onMsChange(){
   });
   updateMsBtn();
   document.getElementById('btn-rst').style.display=curVals.size?'':'none';
-  const rows=filtered();
-  renderTable(rows);
+  renderAllTables();
   updateInfoBar();
-  updateStats(rows);
+  updateStats();
 }
 function updateMsBtn(){
   const btn=document.getElementById('ms-btn');
@@ -1063,18 +1154,28 @@ function isStatusCol(hdr){
   return STATUS_COL_NAMES.includes((hdr||'').toLowerCase().trim());
 }
 
-function renderTable(rows, headers){
+function renderAllTables(){
   const wrap = document.getElementById('rwrap');
-  const h = headers || (curSheet ? allData[curSheet]?.h : []) || [];
-  if(!curSheet || !h.length){ showWelcome(); return; }
+  const sheets = [...curSheets].sort((a,b)=>a.localeCompare(b,'es'));
+  if(!sheets.length){ showWelcome(); return; }
+  wrap.innerHTML = sheets.map(sh=>renderSheetSection(sh)).join('');
+  const total = sheets.reduce((s,sh)=>s+sheetFiltered(sh).length,0);
+  setCount(total);
+}
 
-  if(!rows.length && curVals.size){
+function renderSheetSection(sheetName){
+  const d = allData[sheetName];
+  const h = d?.h || [];
+  const rowsAll = sheetFiltered(sheetName);
+  const filterIdx = curCol ? h.indexOf(curCol) : -1;
+
+  if(!rowsAll.length && curVals.size){
     const vlist=[...curVals].slice(0,3).map(v=>`<strong>${esc(v)}</strong>`).join(', ')+(curVals.size>3?'…':'');
-    wrap.innerHTML=`<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros con <strong>${esc(h[curCol]||'')}</strong> = ${vlist}</p></div>`;
-    setCount(0); return;
+    return `<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">0 registros</span></div><div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros con <strong>${esc(curCol||'')}</strong> = ${vlist}</p></div>`;
   }
 
-  let sr=[...rows];
+  let sr=[...rowsAll];
+  const sortSt = sortStBySheet[sheetName] || {col:-1,asc:true};
   if(sortSt.col>=0){
     sr.sort((a,b)=>{
       const va=a[sortSt.col]??'', vb=b[sortSt.col]??'';
@@ -1084,19 +1185,20 @@ function renderTable(rows, headers){
     });
   }
 
-  let html=`<div class="rhead"><span class="rtitle">${esc(curSheet)}</span><span class="rcount" id="rcount">${sr.length} registros</span></div><div class="twrap"><table><thead><tr>`;
+  const sheetEnc = encodeURIComponent(sheetName);
+  let html=`<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${sr.length} registros</span></div><div class="twrap"><table><thead><tr>`;
   h.forEach((col,i)=>{
     const s=sortSt.col===i;
     const arr=s?(sortSt.asc?'▲':'▼'):'⇅';
-    const hl=(i===curCol&&curVals.size)?' chs':'';
-    html+=`<th class="${s?'sorted':''}${hl}" onclick="sortBy(${i})">${esc(col||'')}<span class="si">${arr}</span></th>`;
+    const hl=(i===filterIdx&&curVals.size)?' chs':'';
+    html+=`<th class="${s?'sorted':''}${hl}" onclick="sortBy('${sheetEnc}',${i})">${esc(col||'')}<span class="si">${arr}</span></th>`;
   });
   html+=`</tr></thead><tbody>`;
   sr.forEach(row=>{
     html+='<tr>';
     h.forEach((hdr,i)=>{
       const v=row[i]??'';
-      const isH=(i===curCol&&curVals.size&&curVals.has(v));
+      const isH=(i===filterIdx&&curVals.size&&curVals.has(v));
       const isSt=isStatusCol(hdr);
       const content = v!==''
         ? (isSt ? statusPill(v) : esc(String(v)))
@@ -1106,14 +1208,14 @@ function renderTable(rows, headers){
     html+='</tr>';
   });
   html+='</tbody></table></div>';
-  wrap.innerHTML=html;
-  setCount(sr.length);
+  return html;
 }
 
-function sortBy(col){
-  if(sortSt.col===col) sortSt.asc=!sortSt.asc;
-  else sortSt={col,asc:true};
-  renderTable(filtered());
+function sortBy(sheetNameEnc, col){
+  const sheetName = decodeURIComponent(sheetNameEnc);
+  const cur = sortStBySheet[sheetName] || {col:-1,asc:true};
+  sortStBySheet[sheetName] = (cur.col===col) ? {col, asc:!cur.asc} : {col, asc:true};
+  renderAllTables();
 }
 function setCount(n){const el=document.getElementById('rcount');if(el)el.textContent=`${n} registros`;}
 
@@ -1122,11 +1224,11 @@ function setCount(n){const el=document.getElementById('rcount');if(el)el.textCon
 // ═══════════════════════════════════════════════
 function updateInfoBar(){
   const bar=document.getElementById('info-bar');
-  if(!curSheet){bar.classList.remove('show');return;}
-  const h=allData[curSheet]?.h||[];
-  let html=`<span class="itag">${esc(curSheet)}</span>`;
-  if(curCol>=0&&h[curCol]){
-    html+=` Filtrado por <strong>${esc(h[curCol])}</strong>`;
+  if(!curSheets.size){bar.classList.remove('show');return;}
+  const sheets=[...curSheets].sort((a,b)=>a.localeCompare(b,'es'));
+  let html=sheets.map(s=>`<span class="itag">${esc(s)}</span>`).join(' ');
+  if(curCol){
+    html+=` Filtrado por <strong>${esc(curCol)}</strong>`;
     if(curVals.size===1) html+=` → <strong>${esc([...curVals][0])}</strong>`;
     else if(curVals.size>1) html+=` → <strong>${curVals.size} valores</strong>`;
   }
@@ -1170,78 +1272,110 @@ function buildLongitudChips(headers, rows, prefix){
   return {chips, used: new Set([cols.totalIdx, cols.tendidaIdx])};
 }
 
-function updateStats(rows){
+function updateStats(){
   const sr=document.getElementById('stats-row');
-  if(!rows||!rows.length){sr.classList.remove('show');return;}
-  const h=allData[curSheet]?.h||[];
-  const dateCols=detectDateCols(h, rows);
-  const dateSet=new Set(dateCols);
-  const {chips:longitudChips, used:longitudUsed} = buildLongitudChips(h, rows, 'stat');
+  const sheets=[...curSheets];
+  if(!sheets.length){sr.classList.remove('show');return;}
 
-  const numCols=[], cntCols=[], dateColsInfo=[];
-  h.forEach((name,i)=>{
-    if(dateSet.has(i)){
-      dateColsInfo.push({name,i});
-      return;
+  let totalSum=0, tendidaSum=0, foundLongitud=false, totalLbl='', tendidaLbl='', totalRows=0;
+  sheets.forEach(sh=>{
+    const h=allData[sh]?.h||[];
+    const rows=sheetFiltered(sh);
+    totalRows+=rows.length;
+    const cols=findLongitudCols(h);
+    if(cols){
+      foundLongitud=true;
+      totalLbl = totalLbl || h[cols.totalIdx];
+      tendidaLbl = tendidaLbl || h[cols.tendidaIdx];
+      rows.forEach(r=>{
+        const a=parseFloat(r[cols.totalIdx]); if(!isNaN(a)) totalSum+=a;
+        const b=parseFloat(r[cols.tendidaIdx]); if(!isNaN(b)) tendidaSum+=b;
+      });
     }
-    if(longitudUsed.has(i)) return;
-    const lc=(name||'').toLowerCase().trim();
-    if(IDENTIFIER_COLS.has(lc)){
-      cntCols.push({name,i});
-      return;
-    }
-    const nums=rows.map(r=>parseFloat(r[i])).filter(n=>!isNaN(n));
-    if(nums.length>rows.length*.3) numCols.push({name,nums,i});
   });
 
-  const statsHtml=[
-    ...longitudChips,
-    ...dateColsInfo.slice(0,2).map(({name,i})=>{
-      const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='').map(v=>{
-        const d=resParseDate(v);
-        return d ? resDateMs(d) : v;
-      })).size;
-      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">fechas</span></div></div>`;
-    }),
-    ...cntCols.slice(0,3).map(({name,i})=>{
-      const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='')).size;
-      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">únicos</span></div></div>`;
-    }),
-    ...numCols.slice(0,4).map(({name,nums})=>{
-      const s=nums.reduce((a,b)=>a+b,0);
-      const fmt=s%1===0?s.toLocaleString('es-ES'):s.toFixed(1);
-      const lc=name.toLowerCase();
-      const unit=lc.includes('longitud')||lc.includes('(m)')||lc.includes(' m)')?' m':'';
-      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${fmt}<span class="stat-unit">${unit||'total'}</span></div></div>`;
-    })
-  ].join('');
+  if(!totalRows){sr.classList.remove('show');return;}
 
-  if(!statsHtml&&!rows.length){sr.classList.remove('show');return;}
-  sr.innerHTML=statsHtml+`<div class="stat"><div class="stat-lbl">Registros</div><div class="stat-val">${rows.length}</div></div>`;
+  const fmt=n=>(n%1===0?n.toLocaleString('es-ES'):n.toFixed(1));
+  const chip=(lbl,val)=>`<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val">${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
+  const longitudChips = foundLongitud
+    ? [chip(totalLbl,totalSum), chip(tendidaLbl,tendidaSum), chip('Faltante Tendido', totalSum-tendidaSum)]
+    : [];
+
+  let extraHtml='';
+  if(sheets.length===1){
+    const sh=sheets[0];
+    const h=allData[sh]?.h||[];
+    const rows=sheetFiltered(sh);
+    const dateCols=detectDateCols(h, rows);
+    const dateSet=new Set(dateCols);
+    const longCols=findLongitudCols(h);
+    const longitudUsed = longCols ? new Set([longCols.totalIdx, longCols.tendidaIdx]) : new Set();
+
+    const numCols=[], cntCols=[], dateColsInfo=[];
+    h.forEach((name,i)=>{
+      if(dateSet.has(i)){ dateColsInfo.push({name,i}); return; }
+      if(longitudUsed.has(i)) return;
+      const lc=(name||'').toLowerCase().trim();
+      if(IDENTIFIER_COLS.has(lc)){ cntCols.push({name,i}); return; }
+      const nums=rows.map(r=>parseFloat(r[i])).filter(n=>!isNaN(n));
+      if(nums.length>rows.length*.3) numCols.push({name,nums,i});
+    });
+
+    extraHtml=[
+      ...dateColsInfo.slice(0,2).map(({name,i})=>{
+        const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='').map(v=>{
+          const d=resParseDate(v);
+          return d ? resDateMs(d) : v;
+        })).size;
+        return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">fechas</span></div></div>`;
+      }),
+      ...cntCols.slice(0,3).map(({name,i})=>{
+        const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='')).size;
+        return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">únicos</span></div></div>`;
+      }),
+      ...numCols.slice(0,4).map(({name,nums})=>{
+        const s=nums.reduce((a,b)=>a+b,0);
+        const fmt2=s%1===0?s.toLocaleString('es-ES'):s.toFixed(1);
+        const lc=name.toLowerCase();
+        const unit=lc.includes('longitud')||lc.includes('(m)')||lc.includes(' m)')?' m':'';
+        return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${fmt2}<span class="stat-unit">${unit||'total'}</span></div></div>`;
+      })
+    ].join('');
+  }
+
+  sr.innerHTML = longitudChips.join('') + extraHtml + `<div class="stat"><div class="stat-lbl">Registros</div><div class="stat-val">${totalRows}</div></div>`;
   sr.classList.add('show');
 }
 
-// Auto-selecciona la columna de filtro más relevante según estructura de la hoja
+// Auto-selecciona la columna de filtro más relevante según estructura de la(s) hoja(s)
 function autoSelectFilterCol(){
-  if(!curSheet || !allData[curSheet]) return;
-  const gid = window._GID_MAP?.[curSheet];
-  // Buscar filtro por GID o por nombre de hoja
-  const preferredColName = (gid ? SHEET_DEFAULT_FILTER[gid] : null)
-    ?? SHEET_DEFAULT_FILTER_BY_NAME[curSheet]
-    ?? null;
+  if(!curSheets.size) return;
+  const sheets=[...curSheets];
+  const prefFor = sh=>{
+    const gid = window._GID_MAP?.[sh];
+    return (gid ? SHEET_DEFAULT_FILTER[gid] : null) ?? SHEET_DEFAULT_FILTER_BY_NAME[sh] ?? null;
+  };
+  let preferredColName = prefFor(sheets[0]);
+  if(sheets.length>1 && !sheets.every(sh=>prefFor(sh)===preferredColName)) preferredColName=null;
   if(!preferredColName) return;
 
-  const h = allData[curSheet].h;
-  const idx = h.findIndex(c => c.trim().toUpperCase() === preferredColName.toUpperCase());
-  if(idx < 0) return;
+  const cols = commonColumns();
+  const match = cols.find(c => c.trim().toUpperCase() === preferredColName.toUpperCase());
+  if(!match) return;
 
   const sc = document.getElementById('sel-col');
-  sc.value = String(idx);
-  curCol = idx;
+  sc.value = match;
+  curCol = match;
 
-  const rows = allData[curSheet]?.r || [];
-  const vals = [...new Set(rows.map(r=>r[idx]??'').filter(v=>v!==''))].sort();
-  msBuild(vals);
+  const vals=new Set();
+  sheets.forEach(sh=>{
+    const h=allData[sh]?.h||[];
+    const idx=h.indexOf(match);
+    if(idx<0) return;
+    (allData[sh]?.r||[]).forEach(r=>{ const v=r[idx]??''; if(v!=='') vals.add(v); });
+  });
+  msBuild([...vals].sort());
   updateInfoBar();
 }
 
@@ -1717,14 +1851,25 @@ function xlsType(v){
   return (!isNaN(n) && isFinite(n)) ? 'Number' : 'String';
 }
 
+function printMain(){
+  // Cerrar cualquier overlay abierto antes de imprimir la tabla principal
+  document.getElementById('resumen-overlay').classList.remove('show');
+  document.getElementById('incidencias-overlay').classList.remove('show');
+  window.print();
+}
+
 function printResumen(){
   if(!lastResults) return;
+  // Cerrar incidencias si estaba abierto
+  document.getElementById('incidencias-overlay').classList.remove('show');
   document.body.classList.add('print-resumen');
   window.print();
 }
 
 function printIncidencias(){
   if(!incItems) return;
+  // Cerrar resumen si estaba abierto
+  document.getElementById('resumen-overlay').classList.remove('show');
   document.body.classList.add('print-incidencias');
   window.print();
 }
