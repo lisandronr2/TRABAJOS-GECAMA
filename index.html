@@ -1191,7 +1191,7 @@ function renderSheetSection(sheetName){
   }
 
   const sheetEnc = encodeURIComponent(sheetName);
-  let html=`<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${sr.length} registros</span></div><div class="twrap"><table><thead><tr>`;
+  let html=`<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${sr.length} registros</span></div>${buildSheetStatsHtml(sheetName)}<div class="twrap"><table><thead><tr>`;
   h.forEach((col,i)=>{
     const s=sortSt.col===i;
     const arr=s?(sortSt.asc?'▲':'▼'):'⇅';
@@ -1282,29 +1282,16 @@ function buildLongitudChips(headers, rows, prefix){
   return {chips, used: new Set([cols.totalIdx, cols.tendidaIdx])};
 }
 
+// El resumen global ya no se usa: cada hoja muestra su propio resumen (ver buildSheetStatsHtml).
 function updateStats(){
-  const sr=document.getElementById('stats-row');
-  const sheets=[...curSheets];
-  if(!sheets.length){sr.classList.remove('show');return;}
+  document.getElementById('stats-row').classList.remove('show');
+}
 
-  let totalSum=0, tendidaSum=0, foundLongitud=false, totalLbl='', tendidaLbl='', totalRows=0;
-  sheets.forEach(sh=>{
-    const h=allData[sh]?.h||[];
-    const rows=sheetFiltered(sh);
-    totalRows+=rows.length;
-    const cols=findLongitudCols(h);
-    if(cols){
-      foundLongitud=true;
-      totalLbl = totalLbl || h[cols.totalIdx];
-      tendidaLbl = tendidaLbl || h[cols.tendidaIdx];
-      rows.forEach(r=>{
-        const a=parseFloat(r[cols.totalIdx]); if(!isNaN(a)) totalSum+=a;
-        const b=parseFloat(r[cols.tendidaIdx]); if(!isNaN(b)) tendidaSum+=b;
-      });
-    }
-  });
-
-  if(!totalRows){sr.classList.remove('show');return;}
+// Construye el bloque de resumen (chips) para UNA hoja, usando solo sus propios datos filtrados.
+function buildSheetStatsHtml(sheetName){
+  const h = allData[sheetName]?.h || [];
+  const rows = sheetFiltered(sheetName);
+  if(!rows.length) return '';
 
   const fmt=n=>(n%1===0?n.toLocaleString('es-ES'):n.toFixed(1));
   const chip=(lbl,val)=>`<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val">${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
@@ -1313,54 +1300,53 @@ function updateStats(){
     const sign=val>0?'+':'';
     return `<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val${cls}">${sign}${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
   };
-  const longitudChips = foundLongitud
-    ? [chip(totalLbl,totalSum), chip(tendidaLbl,tendidaSum), chipSigned('Diferencia Tendida', tendidaSum-totalSum)]
-    : [];
 
-  let extraHtml='';
-  if(sheets.length===1){
-    const sh=sheets[0];
-    const h=allData[sh]?.h||[];
-    const rows=sheetFiltered(sh);
-    const dateCols=detectDateCols(h, rows);
-    const dateSet=new Set(dateCols);
-    const longCols=findLongitudCols(h);
-    const longitudUsed = longCols ? new Set([longCols.totalIdx, longCols.tendidaIdx]) : new Set();
-
-    const numCols=[], cntCols=[], dateColsInfo=[];
-    h.forEach((name,i)=>{
-      if(dateSet.has(i)){ dateColsInfo.push({name,i}); return; }
-      if(longitudUsed.has(i)) return;
-      const lc=(name||'').toLowerCase().trim();
-      if(IDENTIFIER_COLS.has(lc)){ cntCols.push({name,i}); return; }
-      const nums=rows.map(r=>parseFloat(r[i])).filter(n=>!isNaN(n));
-      if(nums.length>rows.length*.3) numCols.push({name,nums,i});
+  const longCols = findLongitudCols(h);
+  let longitudChips=[], longitudUsed=new Set();
+  if(longCols){
+    let totalSum=0, tendidaSum=0;
+    rows.forEach(r=>{
+      const a=parseFloat(r[longCols.totalIdx]); if(!isNaN(a)) totalSum+=a;
+      const b=parseFloat(r[longCols.tendidaIdx]); if(!isNaN(b)) tendidaSum+=b;
     });
-
-    extraHtml=[
-      ...dateColsInfo.slice(0,2).map(({name,i})=>{
-        const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='').map(v=>{
-          const d=resParseDate(v);
-          return d ? resDateMs(d) : v;
-        })).size;
-        return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">fechas</span></div></div>`;
-      }),
-      ...cntCols.slice(0,3).map(({name,i})=>{
-        const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='')).size;
-        return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">únicos</span></div></div>`;
-      }),
-      ...numCols.slice(0,4).map(({name,nums})=>{
-        const s=nums.reduce((a,b)=>a+b,0);
-        const fmt2=s%1===0?s.toLocaleString('es-ES'):s.toFixed(1);
-        const lc=name.toLowerCase();
-        const unit=lc.includes('longitud')||lc.includes('(m)')||lc.includes(' m)')?' m':'';
-        return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${fmt2}<span class="stat-unit">${unit||'total'}</span></div></div>`;
-      })
-    ].join('');
+    longitudChips=[chip(h[longCols.totalIdx],totalSum), chip(h[longCols.tendidaIdx],tendidaSum), chipSigned('Diferencia Tendida', tendidaSum-totalSum)];
+    longitudUsed=new Set([longCols.totalIdx, longCols.tendidaIdx]);
   }
 
-  sr.innerHTML = longitudChips.join('') + extraHtml + `<div class="stat"><div class="stat-lbl">Registros</div><div class="stat-val">${totalRows}</div></div>`;
-  sr.classList.add('show');
+  const dateCols=detectDateCols(h, rows);
+  const dateSet=new Set(dateCols);
+  const numCols=[], cntCols=[], dateColsInfo=[];
+  h.forEach((name,i)=>{
+    if(dateSet.has(i)){ dateColsInfo.push({name,i}); return; }
+    if(longitudUsed.has(i)) return;
+    const lc=(name||'').toLowerCase().trim();
+    if(IDENTIFIER_COLS.has(lc)){ cntCols.push({name,i}); return; }
+    const nums=rows.map(r=>parseFloat(r[i])).filter(n=>!isNaN(n));
+    if(nums.length>rows.length*.3) numCols.push({name,nums,i});
+  });
+
+  const extraHtml=[
+    ...dateColsInfo.slice(0,2).map(({name,i})=>{
+      const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='').map(v=>{
+        const d=resParseDate(v);
+        return d ? resDateMs(d) : v;
+      })).size;
+      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">fechas</span></div></div>`;
+    }),
+    ...cntCols.slice(0,3).map(({name,i})=>{
+      const uniq=new Set(rows.map(r=>r[i]??'').filter(v=>v!=='')).size;
+      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${uniq}<span class="stat-unit">únicos</span></div></div>`;
+    }),
+    ...numCols.slice(0,4).map(({name,nums})=>{
+      const s=nums.reduce((a,b)=>a+b,0);
+      const fmt2=s%1===0?s.toLocaleString('es-ES'):s.toFixed(1);
+      const lc=name.toLowerCase();
+      const unit=lc.includes('longitud')||lc.includes('(m)')||lc.includes(' m)')?' m':'';
+      return`<div class="stat"><div class="stat-lbl">${esc(name)}</div><div class="stat-val">${fmt2}<span class="stat-unit">${unit||'total'}</span></div></div>`;
+    })
+  ].join('');
+
+  return `<div class="stats-row show">${longitudChips.join('')}${extraHtml}<div class="stat"><div class="stat-lbl">Registros</div><div class="stat-val">${rows.length}</div></div></div>`;
 }
 
 // Auto-selecciona la columna de filtro más relevante según estructura de la(s) hoja(s)
