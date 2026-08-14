@@ -174,6 +174,7 @@ tr:last-child td{border-bottom:none}
 }
 .ms-acts button:hover{background:var(--blue-lt);color:var(--blue)}
 .ms-list{overflow-y:auto;max-height:200px}
+#ms-list-hoja{max-height:none;overflow-y:visible}
 .ms-item{
   display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
   font-size:12.5px;color:var(--text);border-bottom:1px solid var(--border)
@@ -1264,10 +1265,11 @@ function buildLongitudChips(headers, rows, prefix){
   const faltante   = totalSum - tendidaSum;
   const fmt = n => (n%1===0 ? n.toLocaleString('es-ES') : n.toFixed(1));
   const chip = (lbl,val) => `<div class="${prefix}"><div class="${prefix}-lbl">${esc(lbl)}</div><div class="${prefix}-val">${fmt(val)}<span class="${prefix}-unit"> m</span></div></div>`;
+  const chipSigned = (lbl,val) => `<div class="${prefix}"><div class="${prefix}-lbl">${esc(lbl)}</div><div class="${prefix}-val">${val>0?'+':''}${fmt(val)}<span class="${prefix}-unit"> m</span></div></div>`;
   const chips = [
     chip(headers[cols.totalIdx], totalSum),
     chip(headers[cols.tendidaIdx], tendidaSum),
-    chip('Faltante Tendido', faltante)
+    chipSigned('Diferencia Tendida', faltante)
   ];
   return {chips, used: new Set([cols.totalIdx, cols.tendidaIdx])};
 }
@@ -1298,8 +1300,9 @@ function updateStats(){
 
   const fmt=n=>(n%1===0?n.toLocaleString('es-ES'):n.toFixed(1));
   const chip=(lbl,val)=>`<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val">${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
+  const chipSigned=(lbl,val)=>`<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val">${val>0?'+':''}${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
   const longitudChips = foundLongitud
-    ? [chip(totalLbl,totalSum), chip(tendidaLbl,tendidaSum), chip('Faltante Tendido', totalSum-tendidaSum)]
+    ? [chip(totalLbl,totalSum), chip(tendidaLbl,tendidaSum), chipSigned('Diferencia Tendida', totalSum-tendidaSum)]
     : [];
 
   let extraHtml='';
