@@ -79,6 +79,7 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .logo-icon{width:34px;height:34px;background:rgba(255,255,255,.18);border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
 .logo-text{font-size:16px;font-weight:700;letter-spacing:.2px}
 .logo-sub{font-size:10px;opacity:.7;margin-top:1px}
+.logo-ver{font-size:9px;opacity:.55;margin-top:1px;font-variant-numeric:tabular-nums}
 .hacts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .btn-h{padding:5px 11px;background:rgba(255,255,255,.13);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s}
 .btn-h:hover{background:rgba(255,255,255,.23)}
@@ -423,6 +424,7 @@ tr:last-child td{border-bottom:none}
     <div>
       <div class="logo-text">TRABAJOS GECAMA</div>
       <div class="logo-sub">CCTV &amp; SSAA · Control de Cableado</div>
+      <div class="logo-ver" id="hdr-version"></div>
     </div>
   </div>
   <div class="hacts">
@@ -1427,6 +1429,8 @@ function setFoot(ts,cached){
 function refreshFoot(){
   const el=document.getElementById('foot');
   setFoot(el.dataset.ts||null, el.dataset.cached==='1');
+  const hv=document.getElementById('hdr-version');
+  if(hv) hv.textContent = APP_VERSION ? `v${APP_VERSION}` : '';
 }
 function toast(msg,type=''){
   const t=document.getElementById('toast');
