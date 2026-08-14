@@ -119,11 +119,11 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .stat-unit{font-size:10px;color:var(--t4);margin-left:2px;font-weight:400}
 
 /* ── RESULTS AREA ── */
-.rwrap{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.rwrap{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;min-height:0;-webkit-overflow-scrolling:touch}
 .rhead{padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);background:var(--card2)}
 .rtitle{font-size:13px;font-weight:700;color:var(--text)}
 .rcount{font-size:11px;color:var(--t3);background:var(--surface);border:1px solid var(--border);padding:2px 10px;border-radius:99px}
-.twrap{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+.twrap{flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
 
 /* ── TABLE ── */
 table{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -187,7 +187,8 @@ tr:last-child td{border-bottom:none}
 .ms-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--blue);flex-shrink:0}
 
 /* ── EMPTY STATES ── */
-.state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;color:var(--t3);flex:1}
+.state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;color:var(--t3)}
+.state:only-child{flex:1}
 .state .ico{font-size:40px;opacity:.35}
 .state h3{font-size:15px;color:var(--t2);font-weight:700}
 .state p{font-size:12px;max-width:320px;line-height:1.65}
