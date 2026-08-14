@@ -114,6 +114,8 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 13px;min-width:100px;flex-shrink:0}
 .stat-lbl{font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;margin-bottom:3px;white-space:nowrap}
 .stat-val{font-size:19px;font-weight:700;color:var(--blue);line-height:1;font-variant-numeric:tabular-nums}
+.stat-val.pos{color:var(--green)}
+.stat-val.neg{color:var(--red)}
 .stat-unit{font-size:10px;color:var(--t4);margin-left:2px;font-weight:400}
 
 /* ── RESULTS AREA ── */
@@ -269,6 +271,8 @@ tr:last-child td{border-bottom:none}
 .res-stat-total .res-stat-val{color:var(--blue)}
 .res-stat-lbl{font-size:9px;color:var(--t3);font-weight:700;text-transform:uppercase;margin-bottom:2px;white-space:nowrap}
 .res-stat-val{font-size:16px;font-weight:700;color:var(--blue);line-height:1;font-variant-numeric:tabular-nums}
+.res-stat-val.pos{color:var(--green)}
+.res-stat-val.neg{color:var(--red)}
 .res-stat-unit{font-size:9px;color:var(--t4);margin-left:2px;font-weight:400}
 .res-twrap{overflow-x:auto}
 .res-twrap table{width:100%;border-collapse:collapse;font-size:12px}
@@ -1265,7 +1269,11 @@ function buildLongitudChips(headers, rows, prefix){
   const faltante   = totalSum - tendidaSum;
   const fmt = n => (n%1===0 ? n.toLocaleString('es-ES') : n.toFixed(1));
   const chip = (lbl,val) => `<div class="${prefix}"><div class="${prefix}-lbl">${esc(lbl)}</div><div class="${prefix}-val">${fmt(val)}<span class="${prefix}-unit"> m</span></div></div>`;
-  const chipSigned = (lbl,val) => `<div class="${prefix}"><div class="${prefix}-lbl">${esc(lbl)}</div><div class="${prefix}-val">${val>0?'+':''}${fmt(val)}<span class="${prefix}-unit"> m</span></div></div>`;
+  const chipSigned = (lbl,val) => {
+    const cls = val>0?' pos':(val<0?' neg':'');
+    const sign = val>0?'+':'';
+    return `<div class="${prefix}"><div class="${prefix}-lbl">${esc(lbl)}</div><div class="${prefix}-val${cls}">${sign}${fmt(val)}<span class="${prefix}-unit"> m</span></div></div>`;
+  };
   const chips = [
     chip(headers[cols.totalIdx], totalSum),
     chip(headers[cols.tendidaIdx], tendidaSum),
@@ -1300,7 +1308,11 @@ function updateStats(){
 
   const fmt=n=>(n%1===0?n.toLocaleString('es-ES'):n.toFixed(1));
   const chip=(lbl,val)=>`<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val">${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
-  const chipSigned=(lbl,val)=>`<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val">${val>0?'+':''}${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
+  const chipSigned=(lbl,val)=>{
+    const cls=val>0?' pos':(val<0?' neg':'');
+    const sign=val>0?'+':'';
+    return `<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val${cls}">${sign}${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
+  };
   const longitudChips = foundLongitud
     ? [chip(totalLbl,totalSum), chip(tendidaLbl,tendidaSum), chipSigned('Diferencia Tendida', totalSum-tendidaSum)]
     : [];
