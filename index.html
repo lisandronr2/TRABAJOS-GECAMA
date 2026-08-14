@@ -1266,7 +1266,7 @@ function buildLongitudChips(headers, rows, prefix){
   },0);
   const totalSum   = sumCol(cols.totalIdx);
   const tendidaSum = sumCol(cols.tendidaIdx);
-  const faltante   = totalSum - tendidaSum;
+  const faltante   = tendidaSum - totalSum;
   const fmt = n => (n%1===0 ? n.toLocaleString('es-ES') : n.toFixed(1));
   const chip = (lbl,val) => `<div class="${prefix}"><div class="${prefix}-lbl">${esc(lbl)}</div><div class="${prefix}-val">${fmt(val)}<span class="${prefix}-unit"> m</span></div></div>`;
   const chipSigned = (lbl,val) => {
@@ -1314,7 +1314,7 @@ function updateStats(){
     return `<div class="stat"><div class="stat-lbl">${esc(lbl)}</div><div class="stat-val${cls}">${sign}${fmt(val)}<span class="stat-unit"> m</span></div></div>`;
   };
   const longitudChips = foundLongitud
-    ? [chip(totalLbl,totalSum), chip(tendidaLbl,tendidaSum), chipSigned('Diferencia Tendida', totalSum-tendidaSum)]
+    ? [chip(totalLbl,totalSum), chip(tendidaLbl,tendidaSum), chipSigned('Diferencia Tendida', tendidaSum-totalSum)]
     : [];
 
   let extraHtml='';
