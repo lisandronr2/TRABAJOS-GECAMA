@@ -10,6 +10,38 @@
         "$root='C:\\Users\\lisan\\Documents\\APP TRABAJOS GECAMA';$port=8765;$l=[System.Net.HttpListener]::new();$l.Prefixes.Add(\"http://localhost:$port/\");$l.Start();Write-Host \"Server on $port\";$m=@{'.html'='text/html';'.js'='application/javascript';'.json'='application/json';'.css'='text/css';'.svg'='image/svg+xml';'.png'='image/png'};while($l.IsListening){$c=$l.GetContext();$p=$c.Request.Url.LocalPath-replace'^/','';if($p-eq''){$p='index.html'};$f=Join-Path $root $p;$r=$c.Response;if(Test-Path $f -PathType Leaf){$e=[IO.Path]::GetExtension($f);$r.ContentType=if($m[$e]){$m[$e]}else{'application/octet-stream'};$b=[IO.File]::ReadAllBytes($f);$r.ContentLength64=$b.Length;$r.OutputStream.Write($b,0,$b.Length)}else{$r.StatusCode=404};$r.OutputStream.Close()}"
       ],
       "port": 8765
+    },
+    {
+      "name": "RECDAGE",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-ExecutionPolicy", "Bypass",
+        "-Command",
+        "$root='C:\\Users\\lisan\\Documents\\RECDAGE';$port=8766;$l=[System.Net.HttpListener]::new();$l.Prefixes.Add(\"http://localhost:$port/\");$l.Start();Write-Host \"Server on $port\";$m=@{'.html'='text/html';'.js'='application/javascript';'.json'='application/json';'.css'='text/css';'.svg'='image/svg+xml';'.png'='image/png'};while($l.IsListening){$c=$l.GetContext();$p=$c.Request.Url.LocalPath-replace'^/','';if($p-eq''){$p='index.html'};$f=Join-Path $root $p;$r=$c.Response;if(Test-Path $f -PathType Leaf){$e=[IO.Path]::GetExtension($f);$r.ContentType=if($m[$e]){$m[$e]}else{'application/octet-stream'};$b=[IO.File]::ReadAllBytes($f);$r.ContentLength64=$b.Length;$r.OutputStream.Write($b,0,$b.Length)}else{$r.StatusCode=404};$r.OutputStream.Close()}"
+      ],
+      "port": 8766
+    },
+    {
+      "name": "planos-vivienda",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-ExecutionPolicy", "Bypass",
+        "-Command",
+        "$root='C:\\Users\\lisan\\Documents\\APP PLANOS VIVIENDA';$port=8767;$l=[System.Net.HttpListener]::new();$l.Prefixes.Add(\"http://localhost:$port/\");$l.Start();Write-Host \"Server on $port\";$m=@{'.html'='text/html';'.js'='application/javascript';'.json'='application/json';'.css'='text/css';'.svg'='image/svg+xml';'.png'='image/png'};while($l.IsListening){$c=$l.GetContext();$p=$c.Request.Url.LocalPath-replace'^/','';if($p-eq''){$p='index.html'};$f=Join-Path $root $p;$r=$c.Response;if(Test-Path $f -PathType Leaf){$e=[IO.Path]::GetExtension($f);$r.ContentType=if($m[$e]){$m[$e]}else{'application/octet-stream'};$b=[IO.File]::ReadAllBytes($f);$r.ContentLength64=$b.Length;$r.OutputStream.Write($b,0,$b.Length)}else{$r.StatusCode=404};$r.OutputStream.Close()}"
+      ],
+      "port": 8767
+    },
+    {
+      "name": "payroll-creator-frontend",
+      "runtimeExecutable": "C:\\Users\\lisan\\Documents\\APP CREANOMEMP\\frontend\\run-dev.cmd",
+      "runtimeArgs": [],
+      "port": 3000
+    },
+    {
+      "name": "preparacion-cae",
+      "runtimeExecutable": "C:\\Users\\lisan\\Documents\\PREPARACION CAE\\run-dev.cmd",
+      "runtimeArgs": [],
+      "port": 3001
     }
   ]
 }
