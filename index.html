@@ -611,7 +611,8 @@ const IDENTIFIER_COLS = new Set([
   'parcela','ct','ct #','ct numero','ct número','anillo','baculo','báculo',
   'camara','cámara','torpedo','direccion','dirección','area','área',
   'personal empleado','identificacion','identificación','código etiqueta',
-  'inicio tramo','fin tramo','tipo de cable','observaciones','estado tendido'
+  'inicio tramo','fin tramo','tipo de cable','observaciones','estado tendido',
+  'conector rs485','conector','inversor','inversores'
 ]);
 
 // ═══════════════════════════════════════════════
@@ -754,7 +755,7 @@ const GID_NAMES = {
 };
 
 // Hojas sin GID confirmado: se buscan por nombre exacto de pestaña
-const SHEETS_BY_NAME = [];
+const SHEETS_BY_NAME = ['CONEXIONADO INVERSORES'];
 
 // Columna de filtro por defecto según GID
 const SHEET_DEFAULT_FILTER = {
@@ -775,7 +776,9 @@ const SHEET_DEFAULT_FILTER = {
 };
 
 // Filtro por defecto para hojas by-name
-const SHEET_DEFAULT_FILTER_BY_NAME = {};
+const SHEET_DEFAULT_FILTER_BY_NAME = {
+  'CONEXIONADO INVERSORES': 'CT',
+};
 
 async function fetchSheetNames(){
   const found = [];
