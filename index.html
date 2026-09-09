@@ -120,7 +120,9 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .stat-unit{font-size:10px;color:var(--t4);margin-left:2px;font-weight:400}
 
 /* ── RESULTS AREA ── */
-.rwrap{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;min-height:0;-webkit-overflow-scrolling:touch}
+.rwrap{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+.ct-group-hdr{padding:7px 14px;background:var(--blue-lt);border-bottom:2px solid var(--blue);border-top:1px solid var(--border);font-size:12px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:6px;flex-shrink:0;cursor:default;user-select:none}
+.ct-group-hdr .ct-count{font-weight:400;font-size:11px;opacity:.75;margin-left:auto}
 .rhead{padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);background:var(--card2)}
 .rtitle{font-size:13px;font-weight:700;color:var(--text)}
 .rcount{font-size:11px;color:var(--t3);background:var(--surface);border:1px solid var(--border);padding:2px 10px;border-radius:99px}
@@ -429,7 +431,7 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="hacts">
     <div class="sbadge"><div class="sdot" id="sdot"></div><span id="slbl">Iniciando…</span></div>
-    <button class="btn-h" id="btn-sync" onclick="syncNow(true)" title="Sincronizar ahora">↻ Sync</button>
+    <button class="btn-h" id="btn-sync" onclick="syncNow(true)" title="Actualizar datos">🔄 Actualizar</button>
     <button class="btn-h" onclick="printMain()" title="Imprimir / Exportar PDF">🖨 PDF</button>
     <button class="btn-h" onclick="downloadExcelMain()" title="Exportar a Excel">📥 Excel</button>
     <button class="btn-h" onclick="openResumen()" title="Resumen por fecha">📅 Resumen</button>
@@ -468,6 +470,19 @@ tr:last-child td{border-bottom:none}
           <button type="button" onclick="msNone()">Ninguno</button>
         </div>
         <div class="ms-list" id="ms-list"></div>
+      </div>
+    </div>
+  </div>
+  <div class="ctrl" id="ctrl-col2" style="display:none">
+    <label id="lbl-col2">CT</label>
+    <div class="ms-wrap" id="ms-wrap2">
+      <button class="ms-btn" id="ms-btn2" type="button" onclick="toggleMsDrop2(event)" disabled>— Todos —</button>
+      <div class="ms-drop" id="ms-drop2">
+        <div class="ms-acts">
+          <button type="button" onclick="msAll2()">Todos</button>
+          <button type="button" onclick="msNone2()">Ninguno</button>
+        </div>
+        <div class="ms-list" id="ms-list2"></div>
       </div>
     </div>
   </div>
@@ -605,6 +620,7 @@ const STATUS_MAP = {
 // ═══════════════════════════════════════════════
 let db = null, allData = {}, knownSheets = [], newSheets = new Set();
 let curSheets = new Set(), curCol = -1, curVals = new Set(), sortStBySheet = {};
+let curCol2 = '', curVals2 = new Set();
 let syncing = false, syncTimer = null, pendingSW = null, toastTmr = null;
 let APP_VERSION = '';
 
@@ -1012,10 +1028,11 @@ function onHoja(){
   });
   updateHojaBtn();
   curCol=''; curVals=new Set();
+  curCol2=''; curVals2=new Set();
   const sc=document.getElementById('sel-col');
   sc.disabled=true;
   sc.innerHTML='<option value="">— Elige columna —</option>';
-  msReset();
+  msReset(); msReset2();
   document.getElementById('btn-rst').style.display='none';
   if(!curSheets.size){ showWelcome(); return; }
   const cols = commonColumns();
@@ -1034,6 +1051,7 @@ function onHoja(){
 function onCol(){
   curCol = document.getElementById('sel-col').value;
   curVals = new Set();
+  curVals2 = new Set();
   const vals = new Set();
   curSheets.forEach(sh=>{
     const h=allData[sh]?.h||[];
@@ -1042,6 +1060,7 @@ function onCol(){
     (allData[sh]?.r||[]).forEach(r=>{ const v=r[idx]??''; if(v!=='') vals.add(v); });
   });
   msBuild([...vals].sort());
+  refreshCTFilter();
   updateInfoBar();
   renderAllTables();
   updateStats();
@@ -1050,10 +1069,16 @@ function onCol(){
 function sheetFiltered(sheetName){
   const d = allData[sheetName];
   if(!d) return [];
-  if(!curCol || !curVals.size) return d.r;
-  const idx = d.h.indexOf(curCol);
-  if(idx<0) return d.r;
-  return d.r.filter(row=>curVals.has(row[idx]??''));
+  let rows = d.r;
+  if(curCol && curVals.size){
+    const idx = d.h.indexOf(curCol);
+    if(idx>=0) rows = rows.filter(row=>curVals.has(row[idx]??''));
+  }
+  if(curCol2 && curVals2.size){
+    const idx2 = d.h.indexOf(curCol2);
+    if(idx2>=0) rows = rows.filter(row=>curVals2.has(row[idx2]??''));
+  }
+  return rows;
 }
 
 function filtered(){
@@ -1064,8 +1089,9 @@ function filtered(){
 
 function resetAll(){
   curCol=''; curVals=new Set();
+  curCol2=''; curVals2=new Set();
   document.getElementById('sel-col').value='';
-  msReset();
+  msReset(); msReset2();
   document.getElementById('btn-rst').style.display='none';
   document.getElementById('info-bar').classList.remove('show');
   if(curSheets.size){
@@ -1093,6 +1119,7 @@ function refreshValSel(){
   });
   curVals = new Set([...document.querySelectorAll('#ms-list input[type=checkbox]:checked')].map(cb=>cb.value));
   updateMsBtn();
+  refreshCTFilter();
 }
 
 // ── MULTI-SELECT ──
@@ -1136,7 +1163,8 @@ function onMsChange(){
     item.classList.toggle('sel', item.querySelector('input').checked);
   });
   updateMsBtn();
-  document.getElementById('btn-rst').style.display=curVals.size?'':'none';
+  refreshCTFilter();
+  document.getElementById('btn-rst').style.display=(curVals.size||curVals2.size)?'':'none';
   renderAllTables();
   updateInfoBar();
   updateStats();
@@ -1150,6 +1178,7 @@ function updateMsBtn(){
 }
 document.addEventListener('click', e=>{
   if(!e.target.closest('#ms-wrap')) document.getElementById('ms-drop')?.classList.remove('open');
+  if(!e.target.closest('#ms-wrap2')) document.getElementById('ms-drop2')?.classList.remove('open');
 });
 
 // ═══════════════════════════════════════════════
@@ -1167,6 +1196,89 @@ function isStatusCol(hdr){
   return STATUS_COL_NAMES.includes((hdr||'').toLowerCase().trim());
 }
 
+// ── FILTRO CT (segundo filtro) ──
+function detectCTColName(cols){
+  return cols.find(c=>/^ct(\s|#|$|num|nú)/i.test(c.trim()))||cols.find(c=>/\bct\b/i.test(c.trim()));
+}
+function refreshCTFilter(){
+  const cols=commonColumns();
+  const ctCol=detectCTColName(cols);
+  const ctrl=document.getElementById('ctrl-col2');
+  if(!ctCol||!curSheets.size){ ctrl.style.display='none'; curCol2=''; curVals2=new Set(); return; }
+  ctrl.style.display='';
+  curCol2=ctCol;
+  document.getElementById('lbl-col2').textContent=ctCol;
+  const vals=new Set();
+  curSheets.forEach(sh=>{
+    const d=allData[sh]; if(!d) return;
+    const parcelaIdx=curCol?d.h.indexOf(curCol):-1;
+    const ctIdx=d.h.indexOf(ctCol); if(ctIdx<0) return;
+    d.r.forEach(row=>{
+      if(parcelaIdx>=0&&curVals.size&&!curVals.has(row[parcelaIdx]??'')) return;
+      const v=row[ctIdx]??''; if(v!=='') vals.add(v);
+    });
+  });
+  const prevVals=new Set(curVals2);
+  msBuild2([...vals].sort((a,b)=>String(a).localeCompare(String(b),'es',{numeric:true})));
+  document.querySelectorAll('#ms-list2 input[type=checkbox]').forEach(cb=>{
+    if(prevVals.has(cb.value)){ cb.checked=true; cb.closest('.ms-item').classList.add('sel'); }
+  });
+  curVals2=new Set([...document.querySelectorAll('#ms-list2 input[type=checkbox]:checked')].map(cb=>cb.value));
+  updateMsBtn2();
+}
+function msBuild2(vals){
+  const list=document.getElementById('ms-list2');
+  list.innerHTML='';
+  vals.forEach(v=>{
+    const lbl=document.createElement('label');
+    lbl.className='ms-item';
+    lbl.innerHTML=`<input type="checkbox" value="${esc(v)}"><span>${esc(v)}</span>`;
+    lbl.querySelector('input').addEventListener('change',onMsChange2);
+    list.appendChild(lbl);
+  });
+  const btn=document.getElementById('ms-btn2');
+  btn.disabled=!vals.length;
+  btn.textContent=vals.length?'— Todos los CT —':'(sin datos)';
+}
+function msReset2(){
+  document.getElementById('ms-list2').innerHTML='';
+  const btn=document.getElementById('ms-btn2');
+  btn.disabled=true; btn.textContent='— Todos —';
+  document.getElementById('ms-drop2').classList.remove('open');
+  document.getElementById('ctrl-col2').style.display='none';
+  curCol2=''; curVals2=new Set();
+}
+function toggleMsDrop2(e){
+  e?.stopPropagation();
+  document.getElementById('ms-drop2').classList.toggle('open');
+}
+function msAll2(){
+  document.querySelectorAll('#ms-list2 input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.closest('.ms-item').classList.add('sel');});
+  onMsChange2();
+}
+function msNone2(){
+  document.querySelectorAll('#ms-list2 input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.ms-item').classList.remove('sel');});
+  onMsChange2();
+}
+function onMsChange2(){
+  curVals2=new Set([...document.querySelectorAll('#ms-list2 input[type=checkbox]:checked')].map(cb=>cb.value));
+  document.querySelectorAll('#ms-list2 .ms-item').forEach(item=>{
+    item.classList.toggle('sel',item.querySelector('input').checked);
+  });
+  updateMsBtn2();
+  document.getElementById('btn-rst').style.display=(curVals.size||curVals2.size)?'':'none';
+  renderAllTables();
+  updateInfoBar();
+  updateStats();
+}
+function updateMsBtn2(){
+  const btn=document.getElementById('ms-btn2');
+  const n=curVals2.size;
+  if(n===0) btn.textContent='— Todos los CT —';
+  else if(n===1) btn.textContent=[...curVals2][0];
+  else btn.textContent=`${n} CTs`;
+}
+
 function renderAllTables(){
   const wrap = document.getElementById('rwrap');
   const sheets = [...curSheets].sort((a,b)=>a.localeCompare(b,'es'));
@@ -1176,52 +1288,75 @@ function renderAllTables(){
   setCount(total);
 }
 
-function renderSheetSection(sheetName){
-  const d = allData[sheetName];
-  const h = d?.h || [];
-  const rowsAll = sheetFiltered(sheetName);
-  const filterIdx = curCol ? h.indexOf(curCol) : -1;
-
-  if(!rowsAll.length && curVals.size){
-    const vlist=[...curVals].slice(0,3).map(v=>`<strong>${esc(v)}</strong>`).join(', ')+(curVals.size>3?'…':'');
-    return `<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">0 registros</span></div><div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros con <strong>${esc(curCol||'')}</strong> = ${vlist}</p></div>`;
-  }
-
-  let sr=[...rowsAll];
-  const sortSt = sortStBySheet[sheetName] || {col:-1,asc:true};
-  if(sortSt.col>=0){
-    sr.sort((a,b)=>{
-      const va=a[sortSt.col]??'', vb=b[sortSt.col]??'';
-      const na=parseFloat(va), nb=parseFloat(vb);
-      const c=(!isNaN(na)&&!isNaN(nb))?na-nb:String(va).localeCompare(String(vb),'es');
-      return sortSt.asc?c:-c;
-    });
-  }
-
-  const sheetEnc = encodeURIComponent(sheetName);
-  let html=`<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${sr.length} registros</span></div>${buildSheetStatsHtml(sheetName)}<div class="twrap"><table><thead><tr>`;
+function buildTableRows(h, rows, filterIdx, filterIdx2, sortSt, sheetEnc){
+  let html=`<div class="twrap"><table><thead><tr>`;
   h.forEach((col,i)=>{
     const s=sortSt.col===i;
     const arr=s?(sortSt.asc?'▲':'▼'):'⇅';
-    const hl=(i===filterIdx&&curVals.size)?' chs':'';
+    const hl=((i===filterIdx&&curVals.size)||(i===filterIdx2&&curVals2.size))?' chs':'';
     html+=`<th class="${s?'sorted':''}${hl}" onclick="sortBy('${sheetEnc}',${i})">${esc(col||'')}<span class="si">${arr}</span></th>`;
   });
   html+=`</tr></thead><tbody>`;
-  sr.forEach(row=>{
+  rows.forEach(row=>{
     html+='<tr>';
     h.forEach((hdr,i)=>{
       const v=row[i]??'';
-      const isH=(i===filterIdx&&curVals.size&&curVals.has(v));
+      const isH=(i===filterIdx&&curVals.size&&curVals.has(v))||(i===filterIdx2&&curVals2.size&&curVals2.has(v));
       const isSt=isStatusCol(hdr);
-      const content = v!==''
-        ? (isSt ? statusPill(v) : esc(String(v)))
-        : '<span class="ec">—</span>';
+      const content=v!==''?(isSt?statusPill(v):esc(String(v))):'<span class="ec">—</span>';
       html+=`<td class="${isH?'hl':''}">${content}</td>`;
     });
     html+='</tr>';
   });
   html+='</tbody></table></div>';
   return html;
+}
+
+function sortRows(rows, sortSt){
+  if(sortSt.col<0) return rows;
+  return [...rows].sort((a,b)=>{
+    const va=a[sortSt.col]??'', vb=b[sortSt.col]??'';
+    const na=parseFloat(va), nb=parseFloat(vb);
+    const c=(!isNaN(na)&&!isNaN(nb))?na-nb:String(va).localeCompare(String(vb),'es');
+    return sortSt.asc?c:-c;
+  });
+}
+
+function renderSheetSection(sheetName){
+  const d = allData[sheetName];
+  const h = d?.h || [];
+  const rowsAll = sheetFiltered(sheetName);
+  const filterIdx = curCol ? h.indexOf(curCol) : -1;
+  const filterIdx2 = curCol2 ? h.indexOf(curCol2) : -1;
+  const sheetEnc = encodeURIComponent(sheetName);
+  const sortSt = sortStBySheet[sheetName] || {col:-1,asc:true};
+
+  if(!rowsAll.length && (curVals.size||curVals2.size)){
+    const vlist=[...curVals].slice(0,3).map(v=>`<strong>${esc(v)}</strong>`).join(', ')+(curVals.size>3?'…':'');
+    return `<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">0 registros</span></div><div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros para la selección actual.</p></div>`;
+  }
+
+  // ── Modo agrupado por CT ──
+  if(curCol2 && curVals2.size && filterIdx2>=0){
+    const groups = new Map();
+    rowsAll.forEach(row=>{
+      const key=row[filterIdx2]??'—';
+      if(!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(row);
+    });
+    const sorted=[...groups.entries()].sort((a,b)=>String(a[0]).localeCompare(String(b[0]),'es',{numeric:true}));
+    let html=`<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${rowsAll.length} registros · ${sorted.length} CT${sorted.length!==1?'s':''}</span></div>${buildSheetStatsHtml(sheetName)}`;
+    sorted.forEach(([ctVal,ctRows])=>{
+      const sr=sortRows(ctRows,sortSt);
+      html+=`<div class="ct-group-hdr">📍 ${esc(curCol2)}: <strong>${esc(ctVal)}</strong><span class="ct-count">${sr.length} registro${sr.length!==1?'s':''}</span></div>`;
+      html+=buildTableRows(h,sr,filterIdx,filterIdx2,sortSt,sheetEnc);
+    });
+    return html;
+  }
+
+  // ── Modo normal ──
+  const sr=sortRows(rowsAll,sortSt);
+  return `<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${sr.length} registros</span></div>${buildSheetStatsHtml(sheetName)}${buildTableRows(h,sr,filterIdx,filterIdx2,sortSt,sheetEnc)}`;
 }
 
 function sortBy(sheetNameEnc, col){
@@ -1244,6 +1379,11 @@ function updateInfoBar(){
     html+=` Filtrado por <strong>${esc(curCol)}</strong>`;
     if(curVals.size===1) html+=` → <strong>${esc([...curVals][0])}</strong>`;
     else if(curVals.size>1) html+=` → <strong>${curVals.size} valores</strong>`;
+  }
+  if(curCol2&&curVals2.size){
+    html+=` · <strong>${esc(curCol2)}</strong>`;
+    if(curVals2.size===1) html+=` → <strong>${esc([...curVals2][0])}</strong>`;
+    else html+=` → <strong>${curVals2.size} CTs</strong>`;
   }
   bar.innerHTML=html; bar.classList.add('show');
 }
@@ -1385,6 +1525,7 @@ function autoSelectFilterCol(){
     (allData[sh]?.r||[]).forEach(r=>{ const v=r[idx]??''; if(v!=='') vals.add(v); });
   });
   msBuild([...vals].sort());
+  refreshCTFilter();
   updateInfoBar();
 }
 
