@@ -513,7 +513,7 @@ tr:last-child td{border-bottom:none}
   <div class="res-ctrl">
     <div class="ctrl">
       <label>Hoja</label>
-      <select id="res-hoja">
+      <select id="res-hoja" onchange="refreshResEstado()">
         <option value="">Todas las hojas</option>
       </select>
     </div>
@@ -546,6 +546,12 @@ tr:last-child td{border-bottom:none}
         <label>Hasta</label>
         <input type="date" id="ri-to">
       </div>
+    </div>
+    <div id="rg-estado" class="ctrl" style="display:none">
+      <label>Estado</label>
+      <select id="res-estado">
+        <option value="">Todos los estados</option>
+      </select>
     </div>
     <button class="btn-res-search" onclick="runResumen()">🔍 Buscar</button>
   </div>
@@ -1662,7 +1668,6 @@ init().catch(console.error);
 // RESUMEN POR FECHA
 // ═══════════════════════════════════════════════
 function openResumen(){
-  // Populate sheet selector
   const sel = document.getElementById('res-hoja');
   const prev = sel.value;
   sel.innerHTML = '<option value="">Todas las hojas</option>';
@@ -1673,7 +1678,55 @@ function openResumen(){
     sel.appendChild(opt);
   });
   if(prev) sel.value = prev;
+  refreshResEstado();
   document.getElementById('resumen-overlay').classList.add('show');
+}
+
+function detectEstadoColIdx(headers){
+  if(!headers) return -1;
+  return headers.findIndex(h => STATUS_COL_NAMES.includes((h||'').toLowerCase().trim()));
+}
+
+function refreshResEstado(){
+  const hojaFiltro = document.getElementById('res-hoja').value;
+  const esel = document.getElementById('res-estado');
+  const wrap = document.getElementById('rg-estado');
+
+  // Recopilar valores únicos de estado de las hojas relevantes
+  const vals = new Set();
+  let hasEstado = false;
+  for(const [name, data] of Object.entries(allData)){
+    if(hojaFiltro && name !== hojaFiltro) continue;
+    if(!data?.h?.length) continue;
+    const idx = detectEstadoColIdx(data.h);
+    if(idx < 0) continue;
+    hasEstado = true;
+    (data.r||[]).forEach(row => {
+      const v = (row[idx]||'').trim();
+      vals.add(v); // incluye '' (vacío)
+    });
+  }
+
+  if(!hasEstado){ wrap.style.display = 'none'; return; }
+
+  const prevVal = esel.value;
+  esel.innerHTML = '<option value="__ALL__">Todos los estados</option>';
+  // Primero valores no vacíos ordenados, luego vacío al final
+  const sorted = [...vals].filter(v=>v!=='').sort((a,b)=>a.localeCompare(b,'es'));
+  sorted.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    esel.appendChild(o);
+  });
+  if(vals.has('')){
+    const o = document.createElement('option');
+    o.value = '__EMPTY__'; o.textContent = '(Vacío — pendiente)';
+    esel.appendChild(o);
+  }
+  // Restaurar selección previa si sigue siendo válida
+  if([...esel.options].some(o=>o.value===prevVal)) esel.value = prevVal;
+  else esel.value = '__ALL__';
+  wrap.style.display = 'flex';
 }
 function closeResumen(){
   document.getElementById('resumen-overlay').classList.remove('show');
@@ -1752,6 +1805,9 @@ function runResumen(){
     label = `${fmt(f)} → ${fmt(t)}`;
   }
 
+  // Filtro de estado
+  const estadoFilter = document.getElementById('res-estado').value || '__ALL__';
+
   // Buscar en la hoja seleccionada o en todas
   const hojaFiltro = document.getElementById('res-hoja').value;
   const results = [];
@@ -1761,19 +1817,33 @@ function runResumen(){
     const dateCols = detectDateCols(data.h, data.r);
     if(!dateCols.length) continue;
 
+    const estadoIdx = detectEstadoColIdx(data.h);
+
     const matched = data.r.filter(row => {
-      return dateCols.some(ci => {
+      // Filtro fecha
+      const inDate = dateCols.some(ci => {
         const d = resParseDate(row[ci]);
         if(!d) return false;
         const ms = resDateMs(d);
         return ms >= fromMs && ms <= toMs;
       });
+      if(!inDate) return false;
+      // Filtro estado
+      if(estadoFilter !== '__ALL__' && estadoIdx >= 0){
+        const val = (row[estadoIdx]||'').trim();
+        if(estadoFilter === '__EMPTY__') return val === '';
+        return val.toUpperCase() === estadoFilter.toUpperCase();
+      }
+      return true;
     });
 
     if(matched.length) results.push({sheet:sheetName, headers:data.h, rows:matched, dateCols});
   }
 
-  renderResumenResults(results, label);
+  // Etiqueta con estado si hay filtro activo
+  const estadoLabel = estadoFilter === '__ALL__' ? '' :
+    estadoFilter === '__EMPTY__' ? ' · (Vacío — pendiente)' : ` · Estado: ${estadoFilter}`;
+  renderResumenResults(results, label + estadoLabel);
 }
 
 const RES_STATS_EXCLUDE = new Set(['inicio tramo','fin tramo','anillo']);
