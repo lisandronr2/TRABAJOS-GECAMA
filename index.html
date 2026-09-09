@@ -430,7 +430,8 @@ tr:last-child td{border-bottom:none}
   <div class="hacts">
     <div class="sbadge"><div class="sdot" id="sdot"></div><span id="slbl">Iniciando…</span></div>
     <button class="btn-h" id="btn-sync" onclick="syncNow(true)" title="Sincronizar ahora">↻ Sync</button>
-    <button class="btn-h" onclick="printMain()" title="Imprimir / Exportar PDF">🖨</button>
+    <button class="btn-h" onclick="printMain()" title="Imprimir / Exportar PDF">🖨 PDF</button>
+    <button class="btn-h" onclick="downloadExcelMain()" title="Exportar a Excel">📥 Excel</button>
     <button class="btn-h" onclick="openResumen()" title="Resumen por fecha">📅 Resumen</button>
     <button class="btn-h" onclick="openIncidencias()" title="Incidencias diarias">🚨 Incidencias</button>
     <button class="btn-h" id="btn-theme" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
@@ -1888,15 +1889,13 @@ window.addEventListener('afterprint', function(){
   document.body.classList.remove('print-incidencias');
 });
 
-function downloadExcel(){
-  if(!lastResults || !lastResults.sheets.length){
-    return;
-  }
+function downloadExcelSheets(sheets, filenamePrefix){
+  if(!sheets || !sheets.length) return;
   let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n'
     + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
     + 'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
 
-  lastResults.sheets.forEach(({sheet, headers, sortedRows}) => {
+  sheets.forEach(({sheet, headers, sortedRows}) => {
     const sheetName = escXml(sheet.slice(0,31));
     xml += `<Worksheet ss:Name="${sheetName}"><Table>`;
     xml += '<Row>';
@@ -1923,11 +1922,40 @@ function downloadExcel(){
   const a    = document.createElement('a');
   const date = new Date().toISOString().slice(0,10);
   a.href     = url;
-  a.download = `resumen_${date}.xls`;
+  a.download = `${filenamePrefix}_${date}.xls`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function downloadExcel(){
+  if(!lastResults || !lastResults.sheets.length) return;
+  downloadExcelSheets(lastResults.sheets, 'resumen');
+}
+
+// Excel de la tabla principal: exporta exactamente lo que está desplegado
+// (todas las hojas seleccionadas, con el filtro y el orden aplicados en pantalla)
+function downloadExcelMain(){
+  const sheets = [...curSheets].sort((a,b)=>a.localeCompare(b,'es'));
+  if(!sheets.length){ toast('⚠️ Elige al menos una hoja para exportar','warn'); return; }
+
+  const dataSheets = sheets.map(sh=>{
+    const headers = allData[sh]?.h || [];
+    let rows = sheetFiltered(sh);
+    const sortSt = sortStBySheet[sh] || {col:-1,asc:true};
+    if(sortSt.col>=0){
+      rows = [...rows].sort((a,b)=>{
+        const va=a[sortSt.col]??'', vb=b[sortSt.col]??'';
+        const na=parseFloat(va), nb=parseFloat(vb);
+        const c=(!isNaN(na)&&!isNaN(nb))?na-nb:String(va).localeCompare(String(vb),'es');
+        return sortSt.asc?c:-c;
+      });
+    }
+    return {sheet: sh, headers, sortedRows: rows};
+  });
+
+  downloadExcelSheets(dataSheets, 'trabajos_gecama');
 }
 </script>
 </body>
