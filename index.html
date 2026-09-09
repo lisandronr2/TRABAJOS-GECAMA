@@ -572,6 +572,7 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 <script>
 // ═══════════════════════════════════════════════
 // CONFIG
@@ -1847,20 +1848,6 @@ async function resolverIncidencia(row, btn){
   }
 }
 
-function escXml(s){
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-}
-
-function xlsType(v){
-  if(v===''||v==null) return 'String';
-  const s = String(v).trim();
-  if(/[\/\-:]/.test(s)) return 'String';
-  const n = Number(s);
-  return (!isNaN(n) && isFinite(n)) ? 'Number' : 'String';
-}
-
 function printMain(){
   // Cerrar cualquier overlay abierto antes de imprimir la tabla principal
   document.getElementById('resumen-overlay').classList.remove('show');
@@ -1889,44 +1876,35 @@ window.addEventListener('afterprint', function(){
   document.body.classList.remove('print-incidencias');
 });
 
+// Nombres de hoja de Excel: máx 31 caracteres, sin \ / ? * [ ] : , y sin repetirse.
+function xlsxSafeSheetName(name, used){
+  let clean = String(name||'Hoja').replace(/[\\/?*\[\]:]/g,' ').trim().slice(0,31) || 'Hoja';
+  let final = clean, n = 2;
+  while(used.has(final)){
+    const suffix = ` (${n++})`;
+    final = clean.slice(0, 31-suffix.length) + suffix;
+  }
+  used.add(final);
+  return final;
+}
+
+// Genera un .xlsx real (OOXML) vía SheetJS: máxima compatibilidad con Excel,
+// sin advertencias de "archivo protegido/dañado" como pasaba con el XML manual.
 function downloadExcelSheets(sheets, filenamePrefix){
   if(!sheets || !sheets.length) return;
-  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n'
-    + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
-    + 'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
-
+  if(typeof XLSX === 'undefined'){
+    toast('❌ Generador de Excel no disponible. Revisa tu conexión e intenta de nuevo.', 'err');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const usedNames = new Set();
   sheets.forEach(({sheet, headers, sortedRows}) => {
-    const sheetName = escXml(sheet.slice(0,31));
-    xml += `<Worksheet ss:Name="${sheetName}"><Table>`;
-    xml += '<Row>';
-    headers.forEach(h => { xml += `<Cell><Data ss:Type="String">${escXml(h||'')}</Data></Cell>`; });
-    xml += '</Row>';
-    sortedRows.forEach(row => {
-      xml += '<Row>';
-      headers.forEach((_,i) => {
-        const v  = row[i] ?? '';
-        const vs = String(v);
-        const t  = xlsType(v);
-        xml += `<Cell><Data ss:Type="${t}">${escXml(vs)}</Data></Cell>`;
-      });
-      xml += '</Row>';
-    });
-    xml += '</Table></Worksheet>';
+    const aoa = [headers.map(h=>h||''), ...sortedRows.map(row => headers.map((_,i)=>row[i]??''))];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, xlsxSafeSheetName(sheet, usedNames));
   });
-
-  xml += '</Workbook>';
-
-  const bom  = '﻿';
-  const blob = new Blob([bom + xml], {type:'application/vnd.ms-excel;charset=utf-8'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
   const date = new Date().toISOString().slice(0,10);
-  a.href     = url;
-  a.download = `${filenamePrefix}_${date}.xls`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  XLSX.writeFile(wb, `${filenamePrefix}_${date}.xlsx`);
 }
 
 function downloadExcel(){
