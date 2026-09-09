@@ -1784,7 +1784,12 @@ function runResumen(){
   const tipo = document.getElementById('res-tipo').value;
   let fromMs, toMs, label;
 
-  if(tipo === 'fecha'){
+  // En modo pendiente no se necesita fecha
+  const esPendiente = (document.getElementById('res-estado').value === '__EMPTY__');
+
+  if(esPendiente){
+    label = 'Pendiente (sin ejecutar)';
+  } else if(tipo === 'fecha'){
     const val = document.getElementById('ri-fecha').value;
     if(!val){ toast('Selecciona una fecha','warn'); return; }
     const d = new Date(val + 'T00:00:00');
@@ -1821,31 +1826,55 @@ function runResumen(){
     if(!dateCols.length) continue;
 
     const estadoIdx = detectEstadoColIdx(data.h);
+    let matched;
 
-    const matched = data.r.filter(row => {
-      // Filtro fecha
-      const inDate = dateCols.some(ci => {
-        const d = resParseDate(row[ci]);
-        if(!d) return false;
-        const ms = resDateMs(d);
-        return ms >= fromMs && ms <= toMs;
-      });
-      if(!inDate) return false;
-      // Filtro estado
-      if(estadoFilter !== '__ALL__' && estadoIdx >= 0){
-        const val = (row[estadoIdx]||'').trim();
-        if(estadoFilter === '__EMPTY__') return val === '';
-        return val.toUpperCase() === estadoFilter.toUpperCase();
+    if(estadoFilter === '__EMPTY__'){
+      // Modo pendiente: filas sin ejecutar
+      // Primero recopilar qué estados aparecen en filas QUE SÍ tienen fecha (en toda la hoja)
+      const datedEstados = new Set();
+      if(estadoIdx >= 0){
+        data.r.forEach(row => {
+          const hasDate = dateCols.some(ci => resParseDate(row[ci]) !== null);
+          if(hasDate){
+            const v = (row[estadoIdx]||'').trim().toUpperCase();
+            if(v) datedEstados.add(v);
+          }
+        });
       }
-      return true;
-    });
+      // Seleccionar filas pendientes: estado vacío, O estado con valor pero sin fecha
+      // y ese estado NO aparece en filas con fecha (si aparece = mismo estado = ya ejecutado)
+      matched = data.r.filter(row => {
+        const estadoVal = estadoIdx >= 0 ? (row[estadoIdx]||'').trim() : '';
+        const hasDate = dateCols.some(ci => resParseDate(row[ci]) !== null);
+        if(hasDate) return false; // tiene fecha → ejecutado, no pendiente
+        if(estadoVal === '') return true; // sin estado y sin fecha → pendiente
+        // tiene estado pero sin fecha → pendiente solo si ese estado no aparece con fecha
+        return !datedEstados.has(estadoVal.toUpperCase());
+      });
+    } else {
+      // Modo normal: filtro por fecha y opcionalmente por estado
+      matched = data.r.filter(row => {
+        const inDate = dateCols.some(ci => {
+          const d = resParseDate(row[ci]);
+          if(!d) return false;
+          const ms = resDateMs(d);
+          return ms >= fromMs && ms <= toMs;
+        });
+        if(!inDate) return false;
+        if(estadoFilter !== '__ALL__' && estadoIdx >= 0){
+          const val = (row[estadoIdx]||'').trim();
+          return val.toUpperCase() === estadoFilter.toUpperCase();
+        }
+        return true;
+      });
+    }
 
     if(matched.length) results.push({sheet:sheetName, headers:data.h, rows:matched, dateCols});
   }
 
   // Etiqueta con estado si hay filtro activo
   const estadoLabel = estadoFilter === '__ALL__' ? '' :
-    estadoFilter === '__EMPTY__' ? ' · (Vacío — pendiente)' : ` · Estado: ${estadoFilter}`;
+    estadoFilter === '__EMPTY__' ? ' · Pendiente (sin ejecutar)' : ` · Estado: ${estadoFilter}`;
   renderResumenResults(results, label + estadoLabel);
 }
 
