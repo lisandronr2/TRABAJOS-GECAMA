@@ -1684,7 +1684,10 @@ function openResumen(){
 
 function detectEstadoColIdx(headers){
   if(!headers) return -1;
-  return headers.findIndex(h => STATUS_COL_NAMES.includes((h||'').toLowerCase().trim()));
+  return headers.findIndex(h => {
+    const lc = (h||'').toLowerCase().trim();
+    return STATUS_COL_NAMES.some(n => lc.includes(n));
+  });
 }
 
 function refreshResEstado(){
