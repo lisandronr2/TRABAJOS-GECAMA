@@ -337,7 +337,7 @@ tr:last-child td{border-bottom:none}
   body:not(.print-resumen):not(.print-incidencias) .ctrl-bar,body:not(.print-resumen):not(.print-incidencias) .info-bar,body:not(.print-resumen):not(.print-incidencias) .hacts,body:not(.print-resumen):not(.print-incidencias) .btn-rst,body:not(.print-resumen):not(.print-incidencias) #b-update,body:not(.print-resumen):not(.print-incidencias) #b-offline,body:not(.print-resumen):not(.print-incidencias) #b-error,body:not(.print-resumen):not(.print-incidencias) .toast,body:not(.print-resumen):not(.print-incidencias) .foot{display:none!important}
   body:not(.print-resumen):not(.print-incidencias) .rwrap{overflow:visible}
   body:not(.print-resumen):not(.print-incidencias) .twrap{overflow:visible}
-  body:not(.print-resumen):not(.print-incidencias) thead{position:static}
+  thead{position:static!important}
   body:not(.print-resumen):not(.print-incidencias) tr{page-break-inside:avoid}
 
   /* Resumen print */
@@ -365,7 +365,19 @@ tr:last-child td{border-bottom:none}
   }
   body.print-resumen .res-twrap{overflow:visible!important}
   body.print-resumen .res-twrap td{white-space:normal!important;max-width:none!important}
-  body.print-resumen .res-sheet-group{break-inside:avoid;page-break-inside:avoid;margin-bottom:16px}
+  /* No forzar que TODO el grupo evite el salto de página: si el grupo es más alto
+     que una página, esa regla lo empuja entero a la página siguiente y deja la
+     primera casi en blanco. Solo protegemos el encabezado del grupo (para que no
+     quede huérfano) y cada fila de la tabla; el resto fluye normalmente. */
+  body.print-resumen .res-sheet-group{margin-bottom:16px}
+  body.print-resumen .res-sheet-hdr,
+  body.print-resumen .res-stats-strip{
+    break-inside:avoid;page-break-inside:avoid;
+    break-after:avoid;page-break-after:avoid
+  }
+  body.print-resumen .res-twrap table{break-before:avoid;page-break-before:avoid}
+  body.print-resumen .res-twrap thead{display:table-header-group}
+  body.print-resumen .res-twrap tr{break-inside:avoid;page-break-inside:avoid}
 
   /* Incidencias print */
   body.print-incidencias .hdr,
