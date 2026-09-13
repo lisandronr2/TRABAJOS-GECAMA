@@ -470,6 +470,32 @@ tr:last-child td{border-bottom:none}
       </div>
     </div>
   </div>
+  <div class="ctrl" id="ctrl-colP" style="display:none">
+    <label id="lbl-colP">Parcela</label>
+    <div class="ms-wrap" id="ms-wrap-p">
+      <button class="ms-btn" id="ms-btn-p" type="button" onclick="toggleMsDropP(event)" disabled>— Todas —</button>
+      <div class="ms-drop" id="ms-drop-p">
+        <div class="ms-acts">
+          <button type="button" onclick="msAllP()">Todas</button>
+          <button type="button" onclick="msNoneP()">Ninguna</button>
+        </div>
+        <div class="ms-list" id="ms-list-p"></div>
+      </div>
+    </div>
+  </div>
+  <div class="ctrl" id="ctrl-col2" style="display:none">
+    <label id="lbl-col2">CT</label>
+    <div class="ms-wrap" id="ms-wrap2">
+      <button class="ms-btn" id="ms-btn2" type="button" onclick="toggleMsDrop2(event)" disabled>— Todos —</button>
+      <div class="ms-drop" id="ms-drop2">
+        <div class="ms-acts">
+          <button type="button" onclick="msAll2()">Todos</button>
+          <button type="button" onclick="msNone2()">Ninguno</button>
+        </div>
+        <div class="ms-list" id="ms-list2"></div>
+      </div>
+    </div>
+  </div>
   <div class="ctrl">
     <label>Filtrar por</label>
     <select id="sel-col" onchange="onCol()" disabled>
@@ -486,19 +512,6 @@ tr:last-child td{border-bottom:none}
           <button type="button" onclick="msNone()">Ninguno</button>
         </div>
         <div class="ms-list" id="ms-list"></div>
-      </div>
-    </div>
-  </div>
-  <div class="ctrl" id="ctrl-col2" style="display:none">
-    <label id="lbl-col2">CT</label>
-    <div class="ms-wrap" id="ms-wrap2">
-      <button class="ms-btn" id="ms-btn2" type="button" onclick="toggleMsDrop2(event)" disabled>— Todos —</button>
-      <div class="ms-drop" id="ms-drop2">
-        <div class="ms-acts">
-          <button type="button" onclick="msAll2()">Todos</button>
-          <button type="button" onclick="msNone2()">Ninguno</button>
-        </div>
-        <div class="ms-list" id="ms-list2"></div>
       </div>
     </div>
   </div>
@@ -643,6 +656,7 @@ const STATUS_MAP = {
 let db = null, allData = {}, knownSheets = [], newSheets = new Set();
 let curSheets = new Set(), curCol = -1, curVals = new Set(), sortStBySheet = {};
 let curCol2 = '', curVals2 = new Set();
+let curColP = '', curValsP = new Set();
 let syncing = false, syncTimer = null, pendingSW = null, toastTmr = null;
 let APP_VERSION = '';
 
@@ -1051,10 +1065,11 @@ function onHoja(){
   updateHojaBtn();
   curCol=''; curVals=new Set();
   curCol2=''; curVals2=new Set();
+  curColP=''; curValsP=new Set();
   const sc=document.getElementById('sel-col');
   sc.disabled=true;
   sc.innerHTML='<option value="">— Elige columna —</option>';
-  msReset(); msReset2();
+  msReset(); msReset2(); msResetP();
   document.getElementById('btn-rst').style.display='none';
   if(!curSheets.size){ showWelcome(); return; }
   const cols = commonColumns();
@@ -1064,6 +1079,7 @@ function onHoja(){
     sc.appendChild(o);
   });
   sc.disabled = !cols.length;
+  refreshParcelaFilter();
   updateInfoBar();
   renderAllTables();
   updateStats();
@@ -1096,6 +1112,10 @@ function sheetFiltered(sheetName){
     const idx = d.h.indexOf(curCol);
     if(idx>=0) rows = rows.filter(row=>curVals.has(row[idx]??''));
   }
+  if(curColP && curValsP.size){
+    const idxP = d.h.indexOf(curColP);
+    if(idxP>=0) rows = rows.filter(row=>curValsP.has(row[idxP]??''));
+  }
   if(curCol2 && curVals2.size){
     const idx2 = d.h.indexOf(curCol2);
     if(idx2>=0) rows = rows.filter(row=>curVals2.has(row[idx2]??''));
@@ -1112,8 +1132,9 @@ function filtered(){
 function resetAll(){
   curCol=''; curVals=new Set();
   curCol2=''; curVals2=new Set();
+  curColP=''; curValsP=new Set();
   document.getElementById('sel-col').value='';
-  msReset(); msReset2();
+  msReset(); msReset2(); msResetP();
   document.getElementById('btn-rst').style.display='none';
   document.getElementById('info-bar').classList.remove('show');
   if(curSheets.size){
@@ -1186,7 +1207,7 @@ function onMsChange(){
   });
   updateMsBtn();
   refreshCTFilter();
-  document.getElementById('btn-rst').style.display=(curVals.size||curVals2.size)?'':'none';
+  document.getElementById('btn-rst').style.display=(curVals.size||curVals2.size||curValsP.size)?'':'none';
   renderAllTables();
   updateInfoBar();
   updateStats();
@@ -1201,6 +1222,7 @@ function updateMsBtn(){
 document.addEventListener('click', e=>{
   if(!e.target.closest('#ms-wrap')) document.getElementById('ms-drop')?.classList.remove('open');
   if(!e.target.closest('#ms-wrap2')) document.getElementById('ms-drop2')?.classList.remove('open');
+  if(!e.target.closest('#ms-wrap-p')) document.getElementById('ms-drop-p')?.classList.remove('open');
 });
 
 // ═══════════════════════════════════════════════
@@ -1218,7 +1240,92 @@ function isStatusCol(hdr){
   return STATUS_COL_NAMES.includes((hdr||'').toLowerCase().trim());
 }
 
-// ── FILTRO CT (segundo filtro) ──
+// ── FILTRO PARCELA (fijo, multi-selección, independiente de "Filtrar por") ──
+function detectParcelaColName(cols){
+  return cols.find(c=>/parcela/i.test(c.trim()));
+}
+function refreshParcelaFilter(){
+  const cols=commonColumns();
+  const pCol=detectParcelaColName(cols);
+  const ctrl=document.getElementById('ctrl-colP');
+  if(!pCol||!curSheets.size){
+    ctrl.style.display='none'; curColP=''; curValsP=new Set();
+    refreshCTFilter();
+    return;
+  }
+  ctrl.style.display='';
+  curColP=pCol;
+  document.getElementById('lbl-colP').textContent=pCol;
+  const vals=new Set();
+  curSheets.forEach(sh=>{
+    const d=allData[sh]; if(!d) return;
+    const idx=d.h.indexOf(pCol); if(idx<0) return;
+    d.r.forEach(row=>{ const v=row[idx]??''; if(v!=='') vals.add(v); });
+  });
+  const prevVals=new Set(curValsP);
+  msBuildP([...vals].sort((a,b)=>String(a).localeCompare(String(b),'es',{numeric:true})));
+  document.querySelectorAll('#ms-list-p input[type=checkbox]').forEach(cb=>{
+    if(prevVals.has(cb.value)){ cb.checked=true; cb.closest('.ms-item').classList.add('sel'); }
+  });
+  curValsP=new Set([...document.querySelectorAll('#ms-list-p input[type=checkbox]:checked')].map(cb=>cb.value));
+  updateMsBtnP();
+  refreshCTFilter();
+}
+function msBuildP(vals){
+  const list=document.getElementById('ms-list-p');
+  list.innerHTML='';
+  vals.forEach(v=>{
+    const lbl=document.createElement('label');
+    lbl.className='ms-item';
+    lbl.innerHTML=`<input type="checkbox" value="${esc(v)}"><span>${esc(v)}</span>`;
+    lbl.querySelector('input').addEventListener('change',onMsChangeP);
+    list.appendChild(lbl);
+  });
+  const btn=document.getElementById('ms-btn-p');
+  btn.disabled=!vals.length;
+  btn.textContent=vals.length?'— Todas las parcelas —':'(sin datos)';
+}
+function msResetP(){
+  document.getElementById('ms-list-p').innerHTML='';
+  const btn=document.getElementById('ms-btn-p');
+  btn.disabled=true; btn.textContent='— Todas —';
+  document.getElementById('ms-drop-p').classList.remove('open');
+  document.getElementById('ctrl-colP').style.display='none';
+  curColP=''; curValsP=new Set();
+}
+function toggleMsDropP(e){
+  e?.stopPropagation();
+  document.getElementById('ms-drop-p').classList.toggle('open');
+}
+function msAllP(){
+  document.querySelectorAll('#ms-list-p input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.closest('.ms-item').classList.add('sel');});
+  onMsChangeP();
+}
+function msNoneP(){
+  document.querySelectorAll('#ms-list-p input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.ms-item').classList.remove('sel');});
+  onMsChangeP();
+}
+function onMsChangeP(){
+  curValsP=new Set([...document.querySelectorAll('#ms-list-p input[type=checkbox]:checked')].map(cb=>cb.value));
+  document.querySelectorAll('#ms-list-p .ms-item').forEach(item=>{
+    item.classList.toggle('sel',item.querySelector('input').checked);
+  });
+  updateMsBtnP();
+  refreshCTFilter();
+  document.getElementById('btn-rst').style.display=(curVals.size||curVals2.size||curValsP.size)?'':'none';
+  renderAllTables();
+  updateInfoBar();
+  updateStats();
+}
+function updateMsBtnP(){
+  const btn=document.getElementById('ms-btn-p');
+  const n=curValsP.size;
+  if(n===0) btn.textContent='— Todas las parcelas —';
+  else if(n===1) btn.textContent=[...curValsP][0];
+  else btn.textContent=`${n} parcelas`;
+}
+
+// ── FILTRO CT (tercer filtro, depende de la Parcela seleccionada) ──
 function detectCTColName(cols){
   return cols.find(c=>/^ct(\s|#|$|num|nú)/i.test(c.trim()))||cols.find(c=>/\bct\b/i.test(c.trim()));
 }
@@ -1233,10 +1340,10 @@ function refreshCTFilter(){
   const vals=new Set();
   curSheets.forEach(sh=>{
     const d=allData[sh]; if(!d) return;
-    const parcelaIdx=curCol?d.h.indexOf(curCol):-1;
+    const parcelaIdx=curColP?d.h.indexOf(curColP):-1;
     const ctIdx=d.h.indexOf(ctCol); if(ctIdx<0) return;
     d.r.forEach(row=>{
-      if(parcelaIdx>=0&&curVals.size&&!curVals.has(row[parcelaIdx]??'')) return;
+      if(parcelaIdx>=0&&curValsP.size&&!curValsP.has(row[parcelaIdx]??'')) return;
       const v=row[ctIdx]??''; if(v!=='') vals.add(v);
     });
   });
@@ -1288,7 +1395,7 @@ function onMsChange2(){
     item.classList.toggle('sel',item.querySelector('input').checked);
   });
   updateMsBtn2();
-  document.getElementById('btn-rst').style.display=(curVals.size||curVals2.size)?'':'none';
+  document.getElementById('btn-rst').style.display=(curVals.size||curVals2.size||curValsP.size)?'':'none';
   renderAllTables();
   updateInfoBar();
   updateStats();
@@ -1310,12 +1417,12 @@ function renderAllTables(){
   setCount(total);
 }
 
-function buildTableRows(h, rows, filterIdx, filterIdx2, sortSt, sheetEnc){
+function buildTableRows(h, rows, filterIdx, filterIdx2, filterIdxP, sortSt, sheetEnc){
   let html=`<div class="twrap"><table><thead><tr>`;
   h.forEach((col,i)=>{
     const s=sortSt.col===i;
     const arr=s?(sortSt.asc?'▲':'▼'):'⇅';
-    const hl=((i===filterIdx&&curVals.size)||(i===filterIdx2&&curVals2.size))?' chs':'';
+    const hl=((i===filterIdx&&curVals.size)||(i===filterIdx2&&curVals2.size)||(i===filterIdxP&&curValsP.size))?' chs':'';
     html+=`<th class="${s?'sorted':''}${hl}" onclick="sortBy('${sheetEnc}',${i})">${esc(col||'')}<span class="si">${arr}</span></th>`;
   });
   html+=`</tr></thead><tbody>`;
@@ -1323,7 +1430,7 @@ function buildTableRows(h, rows, filterIdx, filterIdx2, sortSt, sheetEnc){
     html+='<tr>';
     h.forEach((hdr,i)=>{
       const v=row[i]??'';
-      const isH=(i===filterIdx&&curVals.size&&curVals.has(v))||(i===filterIdx2&&curVals2.size&&curVals2.has(v));
+      const isH=(i===filterIdx&&curVals.size&&curVals.has(v))||(i===filterIdx2&&curVals2.size&&curVals2.has(v))||(i===filterIdxP&&curValsP.size&&curValsP.has(v));
       const isSt=isStatusCol(hdr);
       const content=v!==''?(isSt?statusPill(v):esc(String(v))):'<span class="ec">—</span>';
       html+=`<td class="${isH?'hl':''}">${content}</td>`;
@@ -1350,10 +1457,11 @@ function renderSheetSection(sheetName){
   const rowsAll = sheetFiltered(sheetName);
   const filterIdx = curCol ? h.indexOf(curCol) : -1;
   const filterIdx2 = curCol2 ? h.indexOf(curCol2) : -1;
+  const filterIdxP = curColP ? h.indexOf(curColP) : -1;
   const sheetEnc = encodeURIComponent(sheetName);
   const sortSt = sortStBySheet[sheetName] || {col:-1,asc:true};
 
-  if(!rowsAll.length && (curVals.size||curVals2.size)){
+  if(!rowsAll.length && (curVals.size||curVals2.size||curValsP.size)){
     const vlist=[...curVals].slice(0,3).map(v=>`<strong>${esc(v)}</strong>`).join(', ')+(curVals.size>3?'…':'');
     return `<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">0 registros</span></div><div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros para la selección actual.</p></div>`;
   }
@@ -1371,14 +1479,14 @@ function renderSheetSection(sheetName){
     sorted.forEach(([ctVal,ctRows])=>{
       const sr=sortRows(ctRows,sortSt);
       html+=`<div class="ct-group-hdr">📍 ${esc(curCol2)}: <strong>${esc(ctVal)}</strong><span class="ct-count">${sr.length} registro${sr.length!==1?'s':''}</span></div>`;
-      html+=buildTableRows(h,sr,filterIdx,filterIdx2,sortSt,sheetEnc);
+      html+=buildTableRows(h,sr,filterIdx,filterIdx2,filterIdxP,sortSt,sheetEnc);
     });
     return html;
   }
 
   // ── Modo normal ──
   const sr=sortRows(rowsAll,sortSt);
-  return `<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${sr.length} registros</span></div>${buildSheetStatsHtml(sheetName)}${buildTableRows(h,sr,filterIdx,filterIdx2,sortSt,sheetEnc)}`;
+  return `<div class="rhead"><span class="rtitle">${esc(sheetName)}</span><span class="rcount">${sr.length} registros</span></div>${buildSheetStatsHtml(sheetName)}${buildTableRows(h,sr,filterIdx,filterIdx2,filterIdxP,sortSt,sheetEnc)}`;
 }
 
 function sortBy(sheetNameEnc, col){
@@ -1397,15 +1505,20 @@ function updateInfoBar(){
   if(!curSheets.size){bar.classList.remove('show');return;}
   const sheets=[...curSheets].sort((a,b)=>a.localeCompare(b,'es'));
   let html=sheets.map(s=>`<span class="itag">${esc(s)}</span>`).join(' ');
-  if(curCol){
-    html+=` Filtrado por <strong>${esc(curCol)}</strong>`;
-    if(curVals.size===1) html+=` → <strong>${esc([...curVals][0])}</strong>`;
-    else if(curVals.size>1) html+=` → <strong>${curVals.size} valores</strong>`;
+  if(curColP&&curValsP.size){
+    html+=` · <strong>${esc(curColP)}</strong>`;
+    if(curValsP.size===1) html+=` → <strong>${esc([...curValsP][0])}</strong>`;
+    else html+=` → <strong>${curValsP.size} parcelas</strong>`;
   }
   if(curCol2&&curVals2.size){
     html+=` · <strong>${esc(curCol2)}</strong>`;
     if(curVals2.size===1) html+=` → <strong>${esc([...curVals2][0])}</strong>`;
     else html+=` → <strong>${curVals2.size} CTs</strong>`;
+  }
+  if(curCol){
+    html+=` Filtrado por <strong>${esc(curCol)}</strong>`;
+    if(curVals.size===1) html+=` → <strong>${esc([...curVals][0])}</strong>`;
+    else if(curVals.size>1) html+=` → <strong>${curVals.size} valores</strong>`;
   }
   bar.innerHTML=html; bar.classList.add('show');
 }
