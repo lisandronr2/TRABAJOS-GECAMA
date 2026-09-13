@@ -354,10 +354,12 @@ tr:last-child td{border-bottom:none}
   body.print-resumen .res-ctrl,
   body.print-resumen .res-action-bar{display:none!important}
   body.print-resumen #resumen-overlay{
+    display:block!important;
     position:static!important;transform:none!important;
     overflow:visible!important;height:auto!important;z-index:auto!important
   }
   body.print-resumen .res-results{
+    display:block!important;
     overflow:visible!important;max-height:none!important;
     height:auto!important;padding:8px!important
   }
@@ -381,14 +383,16 @@ tr:last-child td{border-bottom:none}
   body.print-incidencias .res-ctrl,
   body.print-incidencias #inc-action-bar{display:none!important}
   body.print-incidencias #incidencias-overlay{
+    display:block!important;
     position:static!important;transform:none!important;
     overflow:visible!important;height:auto!important;z-index:auto!important
   }
   body.print-incidencias .res-results{
+    display:block!important;
     overflow:visible!important;max-height:none!important;
     height:auto!important;padding:8px!important
   }
-  body.print-incidencias .inc-card{break-inside:avoid;page-break-inside:avoid}
+  body.print-incidencias .inc-card{break-inside:avoid;page-break-inside:avoid;margin-bottom:16px}
   html,body{height:auto!important;overflow:visible!important}
 }
 
