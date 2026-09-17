@@ -179,7 +179,7 @@ tr:last-child td{border-bottom:none}
 }
 .ms-acts button:hover{background:var(--blue-lt);color:var(--blue)}
 .ms-list{overflow-y:auto;max-height:200px}
-#ms-list-hoja{max-height:none;overflow-y:visible}
+#ms-list-hoja{max-height:min(320px,50vh);overflow-y:auto}
 .ms-item{
   display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
   font-size:12.5px;color:var(--text);border-bottom:1px solid var(--border)
@@ -1602,8 +1602,10 @@ function buildSheetStatsHtml(sheetName){
 
   const dateCols=detectDateCols(h, rows);
   const dateSet=new Set(dateCols);
+  const EXCLUDE_FROM_STATS = /^FECHA\s*PP\d*$/i;
   const numCols=[], cntCols=[], dateColsInfo=[];
   h.forEach((name,i)=>{
+    if(EXCLUDE_FROM_STATS.test((name||'').trim())) return;
     if(dateSet.has(i)){ dateColsInfo.push({name,i}); return; }
     if(longitudUsed.has(i)) return;
     const lc=(name||'').toLowerCase().trim();
