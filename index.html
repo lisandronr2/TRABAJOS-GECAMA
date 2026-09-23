@@ -1851,18 +1851,7 @@ init().catch(console.error);
 // RESUMEN POR FECHA
 // ═══════════════════════════════════════════════
 function openResumen(){
-  const sel = document.getElementById('res-hoja');
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">Todas las hojas</option>';
-  Object.keys(allData).sort((a,b)=>a.localeCompare(b,'es')).forEach(name => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    sel.appendChild(opt);
-  });
-  if(prev) sel.value = prev;
-  refreshResEstado();
-  document.getElementById('resumen-overlay').classList.add('show');
+  pushScreen({screen:'resumen'});
 }
 
 function detectEstadoColIdx(headers){
@@ -1915,7 +1904,7 @@ function refreshResEstado(){
   wrap.style.display = 'flex';
 }
 function closeResumen(){
-  document.getElementById('resumen-overlay').classList.remove('show');
+  pushScreen({screen:'main'});
 }
 
 function toggleResTipo(){
@@ -2165,6 +2154,45 @@ function renderResumenResults(results, label){
 }
 
 // ═══════════════════════════════════════════════
+// NAVEGACIÓN (atrás / adelante del navegador entre pantallas)
+// ═══════════════════════════════════════════════
+// Cada pantalla (Resumen, Incidencias, Avances y su desglose) es una entrada
+// de historial. Abrir/cerrar SIEMPRE empuja un nuevo estado; el botón atrás
+// nativo del navegador (o el gesto/botón atrás de Android) y el botón
+// adelante simplemente reproducen esos estados via 'popstate'.
+function applyScreenState(state){
+  state = state || {screen:'main'};
+  document.getElementById('resumen-overlay').classList.toggle('show', state.screen==='resumen');
+  document.getElementById('incidencias-overlay').classList.toggle('show', state.screen==='incidencias');
+  document.getElementById('avances-overlay').classList.toggle('show', state.screen==='avances' || state.screen==='avances-detail');
+
+  if(state.screen==='resumen'){
+    const sel = document.getElementById('res-hoja');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Todas las hojas</option>';
+    Object.keys(allData).sort((a,b)=>a.localeCompare(b,'es')).forEach(name=>{
+      const opt=document.createElement('option'); opt.value=name; opt.textContent=name; sel.appendChild(opt);
+    });
+    if(prev) sel.value = prev;
+    refreshResEstado();
+  } else if(state.screen==='incidencias'){
+    loadIncidencias();
+  } else if(state.screen==='avances'){
+    avanceDetailSheet = null;
+    renderAvances();
+  } else if(state.screen==='avances-detail'){
+    avanceDetailSheet = state.sheet;
+    renderAvanceDetail();
+  }
+}
+function pushScreen(state){
+  history.pushState(state, '', location.pathname);
+  applyScreenState(state);
+}
+window.addEventListener('popstate', e => applyScreenState(e.state));
+history.replaceState({screen:'main'}, '', location.pathname);
+
+// ═══════════════════════════════════════════════
 // % AVANCES POR HOJA
 // ═══════════════════════════════════════════════
 // Hojas con dos columnas de estado independientes: se cuentan como
@@ -2330,12 +2358,10 @@ function renderAvances(){
 }
 
 function openAvanceDetail(nameEnc){
-  avanceDetailSheet = decodeURIComponent(nameEnc);
-  renderAvanceDetail();
+  pushScreen({screen:'avances-detail', sheet:decodeURIComponent(nameEnc)});
 }
 function closeAvanceDetail(){
-  avanceDetailSheet = null;
-  renderAvances();
+  pushScreen({screen:'avances'});
 }
 
 function renderAvanceDetail(){
@@ -2374,13 +2400,10 @@ function renderAvanceDetail(){
 }
 
 function openAvances(){
-  document.getElementById('avances-overlay').classList.add('show');
-  avanceDetailSheet = null;
-  renderAvances();
+  pushScreen({screen:'avances'});
 }
 function closeAvances(){
-  document.getElementById('avances-overlay').classList.remove('show');
-  avanceDetailSheet = null;
+  pushScreen({screen:'main'});
 }
 
 // ═══════════════════════════════════════════════
@@ -2394,11 +2417,10 @@ let incTab = 'no-resueltas'; // 'no-resueltas' | 'resueltas'
 let incLoading = false;
 
 function openIncidencias(){
-  document.getElementById('incidencias-overlay').classList.add('show');
-  loadIncidencias();
+  pushScreen({screen:'incidencias'});
 }
 function closeIncidencias(){
-  document.getElementById('incidencias-overlay').classList.remove('show');
+  pushScreen({screen:'main'});
 }
 
 function switchIncTab(tab){
