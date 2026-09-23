@@ -256,6 +256,29 @@ tr:last-child td{border-bottom:none}
   display:flex;align-items:center;gap:8px;min-height:30px
 }
 .res-results{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px;display:flex;flex-direction:column;gap:16px}
+
+/* ── AVANCES ── */
+.av-summary{padding:16px 16px 4px;flex-shrink:0}
+.av-hero{
+  background:linear-gradient(135deg,var(--blue),var(--blue-dk));
+  border-radius:var(--r);padding:18px 20px;color:#fff;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  box-shadow:var(--shadow)
+}
+.av-hero-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;opacity:.85}
+.av-hero-sub{font-size:11px;opacity:.75;margin-top:3px}
+.av-hero-val{font-size:36px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.av-list{display:flex;flex-direction:column;gap:10px}
+.av-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:13px 15px;box-shadow:var(--shadow);flex-shrink:0
+}
+.av-card-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+.av-card-name{font-size:13.5px;font-weight:700;color:var(--text)}
+.av-card-pct{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;flex-shrink:0}
+.av-track{height:10px;border-radius:99px;background:var(--surface);overflow:hidden;border:1px solid var(--border)}
+.av-fill{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.22,.61,.36,1)}
+.av-card-sub{display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:var(--t3)}
 .res-sheet-group{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0}
 .res-sheet-hdr{
   display:flex;align-items:center;gap:10px;justify-content:space-between;
@@ -452,6 +475,7 @@ tr:last-child td{border-bottom:none}
     <button class="btn-h" onclick="downloadExcelMain()" title="Exportar a Excel">📥 Excel</button>
     <button class="btn-h" onclick="openResumen()" title="Resumen por fecha">📅 Resumen</button>
     <button class="btn-h" onclick="openIncidencias()" title="Incidencias diarias">🚨 Incidencias</button>
+    <button class="btn-h" onclick="openAvances()" title="Porcentaje de avance por hoja">📊 % Avances</button>
     <button class="btn-h" id="btn-theme" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
   </div>
 </div>
@@ -618,6 +642,22 @@ tr:last-child td{border-bottom:none}
       <div class="ico">🚨</div>
       <h3>Incidencias diarias</h3>
       <p>Cargando incidencias…</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── AVANCES OVERLAY ── -->
+<div class="resumen-overlay" id="avances-overlay">
+  <div class="res-hdr">
+    <div class="res-hdr-ico">📊</div>
+    <div class="res-hdr-title">% AVANCES POR HOJA</div>
+    <button class="res-hdr-close" onclick="closeAvances()">✕ Cerrar</button>
+  </div>
+  <div class="av-summary" id="av-summary"></div>
+  <div class="res-results" id="av-results">
+    <div class="state">
+      <div class="ico">📊</div>
+      <h3>Calculando avances…</h3>
     </div>
   </div>
 </div>
@@ -2114,6 +2154,130 @@ function renderResumenResults(results, label){
   }).join('');
 
   cont.innerHTML = sheetsHtml;
+}
+
+// ═══════════════════════════════════════════════
+// % AVANCES POR HOJA
+// ═══════════════════════════════════════════════
+// Hojas con dos columnas de estado independientes: se cuentan como
+// dos "ítems" a ejecutar por fila (ej: ASB1 y ASB2 de un mismo CT).
+const AVANCE_DUAL_COLS = {
+  'CONEXIONADO ASB2':      ['ESTADO ASB1', 'ESTADO ASB2'],
+  'ENSAYOS FIBRA TRONCAL': ['ENSAYOS PP1', 'ENSAYOS PP2'],
+};
+
+function fmtAvanceNum(n){ return n % 1 === 0 ? n.toLocaleString('es-ES') : n.toFixed(1); }
+
+// Calcula el % de avance de una hoja probando, en orden, las señales
+// de ejecución más fiables disponibles en sus columnas:
+//  1) columnas dobles configuradas arriba (2 ítems por fila)
+//  2) Longitud (m) + Longitud tendida → metros tendidos / metros totales
+//  3) solo "Longitud tendida" (hojas BESS, sin columna de longitud total) → filas con dato / total filas
+//  4) primera columna que empiece por "FECHA" → filas con fecha / total filas (RECDAGE la rellena al registrar)
+//  5) columna ESTADO/STATUS → filas con valor / total filas
+function computeSheetProgress(name){
+  const d = allData[name];
+  if(!d || !d.r.length) return null;
+  const h = d.h, rows = d.r;
+
+  const dual = AVANCE_DUAL_COLS[name];
+  if(dual){
+    const idx1 = h.indexOf(dual[0]), idx2 = h.indexOf(dual[1]);
+    if(idx1>=0 && idx2>=0){
+      let done=0;
+      rows.forEach(r=>{
+        if((r[idx1]??'')!=='') done++;
+        if((r[idx2]??'')!=='') done++;
+      });
+      const total = rows.length*2;
+      return { pct: total?Math.round(done/total*100):0, doneLabel:`${done}/${total}`, unit:'ítems' };
+    }
+  }
+
+  const longCols = findLongitudCols(h);
+  if(longCols){
+    let totalSum=0, tendidaSum=0;
+    rows.forEach(r=>{
+      const a=parseFloat(r[longCols.totalIdx]); if(!isNaN(a)) totalSum+=a;
+      const b=parseFloat(r[longCols.tendidaIdx]); if(!isNaN(b)) tendidaSum+=b;
+    });
+    if(totalSum>0){
+      const pct = Math.max(0, Math.min(100, Math.round(tendidaSum/totalSum*100)));
+      return { pct, doneLabel:`${fmtAvanceNum(tendidaSum)} / ${fmtAvanceNum(totalSum)} m`, unit:'metros' };
+    }
+  }
+
+  const ltIdx = h.findIndex(c=>/longitud\s*tendida/i.test(c||''));
+  if(ltIdx>=0){
+    const done = rows.filter(r=>(r[ltIdx]??'')!=='').length;
+    return { pct: Math.round(done/rows.length*100), doneLabel:`${done}/${rows.length}`, unit:'tramos' };
+  }
+
+  const fechaIdx = h.findIndex(c=>/^fecha/i.test((c||'').trim()));
+  if(fechaIdx>=0){
+    const done = rows.filter(r=>(r[fechaIdx]??'')!=='').length;
+    return { pct: Math.round(done/rows.length*100), doneLabel:`${done}/${rows.length}`, unit:'registros' };
+  }
+
+  const estIdx = h.findIndex(c=>STATUS_COL_NAMES.some(n=>(c||'').toLowerCase().includes(n)));
+  if(estIdx>=0){
+    const done = rows.filter(r=>(r[estIdx]??'')!=='').length;
+    return { pct: Math.round(done/rows.length*100), doneLabel:`${done}/${rows.length}`, unit:'registros' };
+  }
+
+  return null;
+}
+
+// Verde (avanzado) → rojo (pendiente), interpolando por el hue HSL.
+function avancePctColor(pct){
+  const hue = Math.max(0, Math.min(120, pct*1.2));
+  return `hsl(${hue},72%,42%)`;
+}
+
+function renderAvances(){
+  const summaryEl = document.getElementById('av-summary');
+  const resultsEl = document.getElementById('av-results');
+
+  const results = [];
+  Object.keys(allData).sort((a,b)=>a.localeCompare(b,'es')).forEach(name=>{
+    const prog = computeSheetProgress(name);
+    if(prog) results.push({ name, ...prog });
+  });
+
+  if(!results.length){
+    summaryEl.innerHTML = '';
+    resultsEl.innerHTML = `<div class="state"><div class="ico">📊</div><h3>Sin datos</h3><p>Aún no hay datos sincronizados para calcular el avance.</p></div>`;
+    return;
+  }
+
+  const avgPct = Math.round(results.reduce((s,r)=>s+r.pct,0)/results.length);
+  summaryEl.innerHTML = `
+    <div class="av-hero">
+      <div>
+        <div class="av-hero-lbl">Avance global</div>
+        <div class="av-hero-sub">${results.length} hoja${results.length!==1?'s':''} con seguimiento</div>
+      </div>
+      <div class="av-hero-val">${avgPct}%</div>
+    </div>`;
+
+  const sorted = [...results].sort((a,b)=>a.pct-b.pct);
+  resultsEl.innerHTML = `<div class="av-list">${sorted.map(r=>`
+    <div class="av-card">
+      <div class="av-card-top">
+        <div class="av-card-name">${esc(r.name)}</div>
+        <div class="av-card-pct" style="color:${avancePctColor(r.pct)}">${r.pct}%</div>
+      </div>
+      <div class="av-track"><div class="av-fill" style="width:${r.pct}%;background:${avancePctColor(r.pct)}"></div></div>
+      <div class="av-card-sub"><span>${esc(r.doneLabel)}</span><span>${esc(r.unit)}</span></div>
+    </div>`).join('')}</div>`;
+}
+
+function openAvances(){
+  document.getElementById('avances-overlay').classList.add('show');
+  renderAvances();
+}
+function closeAvances(){
+  document.getElementById('avances-overlay').classList.remove('show');
 }
 
 // ═══════════════════════════════════════════════
