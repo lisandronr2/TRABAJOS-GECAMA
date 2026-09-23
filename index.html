@@ -279,6 +279,14 @@ tr:last-child td{border-bottom:none}
 .av-track{height:10px;border-radius:99px;background:var(--surface);overflow:hidden;border:1px solid var(--border)}
 .av-fill{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.22,.61,.36,1)}
 .av-card-sub{display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:var(--t3)}
+.av-card.clickable{cursor:pointer;transition:transform .15s,box-shadow .15s}
+.av-card.clickable:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,0,0,.14)}
+.av-chevron{color:var(--t3);font-weight:400}
+.av-back{
+  background:none;border:none;color:var(--blue);font-size:13px;font-weight:700;
+  cursor:pointer;padding:0;margin-bottom:10px;display:flex;align-items:center;gap:2px
+}
+.av-back:hover{text-decoration:underline}
 .res-sheet-group{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0}
 .res-sheet-hdr{
   display:flex;align-items:center;gap:10px;justify-content:space-between;
@@ -2168,17 +2176,16 @@ const AVANCE_DUAL_COLS = {
 
 function fmtAvanceNum(n){ return n % 1 === 0 ? n.toLocaleString('es-ES') : n.toFixed(1); }
 
-// Calcula el % de avance de una hoja probando, en orden, las señales
-// de ejecución más fiables disponibles en sus columnas:
+// Calcula el % de avance de un conjunto de filas (una hoja completa, o el
+// subconjunto de una parcela/CT/anillo) probando, en orden, las señales de
+// ejecución más fiables disponibles en las columnas:
 //  1) columnas dobles configuradas arriba (2 ítems por fila)
 //  2) Longitud (m) + Longitud tendida → metros tendidos / metros totales
 //  3) solo "Longitud tendida" (hojas BESS, sin columna de longitud total) → filas con dato / total filas
 //  4) primera columna que empiece por "FECHA" → filas con fecha / total filas (RECDAGE la rellena al registrar)
 //  5) columna ESTADO/STATUS → filas con valor / total filas
-function computeSheetProgress(name){
-  const d = allData[name];
-  if(!d || !d.r.length) return null;
-  const h = d.h, rows = d.r;
+function computeProgressForRows(name, h, rows){
+  if(!rows.length) return null;
 
   const dual = AVANCE_DUAL_COLS[name];
   if(dual){
@@ -2227,12 +2234,59 @@ function computeSheetProgress(name){
 
   return null;
 }
+function computeSheetProgress(name){
+  const d = allData[name];
+  if(!d) return null;
+  return computeProgressForRows(name, d.h, d.r);
+}
+
+// Columna para desglosar el avance de una hoja, en orden de prioridad:
+// Parcela > CT > Anillo > Dirección (la agrupación más global disponible).
+function detectBreakdownCol(headers){
+  const pCol = headers.find(c=>/parcela/i.test((c||'').trim()));
+  if(pCol) return pCol;
+  const ctCol = detectCTColName(headers);
+  if(ctCol) return ctCol;
+  const anilloCol = headers.find(c=>/^anillo$/i.test((c||'').trim()));
+  if(anilloCol) return anilloCol;
+  const dirCol = headers.find(c=>/^direcci/i.test((c||'').trim()));
+  if(dirCol) return dirCol;
+  return null;
+}
+function computeSheetBreakdown(name){
+  const d = allData[name];
+  if(!d || !d.r.length) return null;
+  const h = d.h;
+  const groupCol = detectBreakdownCol(h);
+  if(!groupCol) return null;
+  const idx = h.indexOf(groupCol);
+  if(idx<0) return null;
+
+  const groups = new Map();
+  d.r.forEach(row=>{
+    const key = (row[idx]??'').trim() || '—';
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  const items = [...groups.entries()]
+    .map(([value, rows]) => {
+      const prog = computeProgressForRows(name, h, rows);
+      return prog ? { value, ...prog } : null;
+    })
+    .filter(Boolean)
+    .sort((a,b) => String(a.value).localeCompare(String(b.value), 'es', {numeric:true}));
+
+  return { groupCol, items };
+}
 
 // Verde (avanzado) → rojo (pendiente), interpolando por el hue HSL.
 function avancePctColor(pct){
   const hue = Math.max(0, Math.min(120, pct*1.2));
   return `hsl(${hue},72%,42%)`;
 }
+
+let avanceDetailSheet = null;
 
 function renderAvances(){
   const summaryEl = document.getElementById('av-summary');
@@ -2261,23 +2315,72 @@ function renderAvances(){
     </div>`;
 
   const sorted = [...results].sort((a,b)=>a.pct-b.pct);
-  resultsEl.innerHTML = `<div class="av-list">${sorted.map(r=>`
-    <div class="av-card">
+  resultsEl.innerHTML = `<div class="av-list">${sorted.map(r=>{
+    const nameEnc = encodeURIComponent(r.name);
+    return `
+    <div class="av-card clickable" onclick="openAvanceDetail('${nameEnc}')">
       <div class="av-card-top">
-        <div class="av-card-name">${esc(r.name)}</div>
+        <div class="av-card-name">${esc(r.name)} <span class="av-chevron">›</span></div>
         <div class="av-card-pct" style="color:${avancePctColor(r.pct)}">${r.pct}%</div>
       </div>
       <div class="av-track"><div class="av-fill" style="width:${r.pct}%;background:${avancePctColor(r.pct)}"></div></div>
       <div class="av-card-sub"><span>${esc(r.doneLabel)}</span><span>${esc(r.unit)}</span></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function openAvanceDetail(nameEnc){
+  avanceDetailSheet = decodeURIComponent(nameEnc);
+  renderAvanceDetail();
+}
+function closeAvanceDetail(){
+  avanceDetailSheet = null;
+  renderAvances();
+}
+
+function renderAvanceDetail(){
+  const name = avanceDetailSheet;
+  const summaryEl = document.getElementById('av-summary');
+  const resultsEl = document.getElementById('av-results');
+
+  const overall   = computeSheetProgress(name);
+  const breakdown = computeSheetBreakdown(name);
+  const pct = overall ? overall.pct : 0;
+
+  summaryEl.innerHTML = `
+    <button class="av-back" onclick="closeAvanceDetail()">‹ Todas las hojas</button>
+    <div class="av-hero">
+      <div>
+        <div class="av-hero-lbl">${esc(name)}</div>
+        <div class="av-hero-sub">${breakdown ? 'Desglose por ' + esc(breakdown.groupCol) : 'Sin columna para desglosar'}</div>
+      </div>
+      <div class="av-hero-val">${pct}%</div>
+    </div>`;
+
+  if(!breakdown || !breakdown.items.length){
+    resultsEl.innerHTML = `<div class="state"><div class="ico">📊</div><h3>Sin desglose disponible</h3><p>Esta hoja no tiene columna de Parcela, CT, Anillo o Dirección para desglosar el avance.</p></div>`;
+    return;
+  }
+
+  resultsEl.innerHTML = `<div class="av-list">${breakdown.items.map(it=>`
+    <div class="av-card">
+      <div class="av-card-top">
+        <div class="av-card-name">${esc(breakdown.groupCol)}: ${esc(it.value)}</div>
+        <div class="av-card-pct" style="color:${avancePctColor(it.pct)}">${it.pct}%</div>
+      </div>
+      <div class="av-track"><div class="av-fill" style="width:${it.pct}%;background:${avancePctColor(it.pct)}"></div></div>
+      <div class="av-card-sub"><span>${esc(it.doneLabel)}</span><span>${esc(it.unit)}</span></div>
     </div>`).join('')}</div>`;
 }
 
 function openAvances(){
   document.getElementById('avances-overlay').classList.add('show');
+  avanceDetailSheet = null;
   renderAvances();
 }
 function closeAvances(){
   document.getElementById('avances-overlay').classList.remove('show');
+  avanceDetailSheet = null;
 }
 
 // ═══════════════════════════════════════════════
