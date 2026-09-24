@@ -2202,7 +2202,7 @@ history.replaceState({screen:'main'}, '', location.pathname);
 // dos "ítems" a ejecutar por fila (ej: ASB1 y ASB2 de un mismo CT).
 const AVANCE_DUAL_COLS = {
   'CONEXIONADO ASB2':      ['ESTADO ASB1', 'ESTADO ASB2'],
-  'ENSAYOS FIBRA TRONCAL': ['ENSAYOS PP1', 'ENSAYOS PP2'],
+  'ENSAYOS FIBRA TRONCAL': ['FECHA PP1', 'FECHA PP2'],
 };
 
 function fmtAvanceNum(n){ return n % 1 === 0 ? n.toLocaleString('es-ES') : n.toFixed(1); }
