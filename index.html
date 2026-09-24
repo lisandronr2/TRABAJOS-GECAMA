@@ -2164,7 +2164,7 @@ function applyScreenState(state){
   state = state || {screen:'main'};
   document.getElementById('resumen-overlay').classList.toggle('show', state.screen==='resumen');
   document.getElementById('incidencias-overlay').classList.toggle('show', state.screen==='incidencias');
-  document.getElementById('avances-overlay').classList.toggle('show', state.screen==='avances' || state.screen==='avances-detail');
+  document.getElementById('avances-overlay').classList.toggle('show', state.screen==='avances' || state.screen==='avances-detail' || state.screen==='avances-detail2');
 
   if(state.screen==='resumen'){
     const sel = document.getElementById('res-hoja');
@@ -2183,6 +2183,9 @@ function applyScreenState(state){
   } else if(state.screen==='avances-detail'){
     avanceDetailSheet = state.sheet;
     renderAvanceDetail();
+  } else if(state.screen==='avances-detail2'){
+    avanceDetailSheet = state.sheet;
+    renderAvanceDetail2(state.sheet, state.parcela);
   }
 }
 function pushScreen(state){
@@ -2308,6 +2311,41 @@ function computeSheetBreakdown(name){
   return { groupCol, items };
 }
 
+// Desglose de una PARCELA concreta de una hoja, por CT. Solo aplica a hojas
+// que tienen columnas de Parcela y de CT a la vez.
+function computeCtBreakdownForParcela(name, parcelaValue){
+  const d = allData[name];
+  if(!d || !d.r.length) return null;
+  const h = d.h;
+  const pCol  = h.find(c=>/parcela/i.test((c||'').trim()));
+  const ctCol = detectCTColName(h);
+  if(!pCol || !ctCol) return null;
+  const pIdx = h.indexOf(pCol), ctIdx = h.indexOf(ctCol);
+  if(pIdx<0 || ctIdx<0) return null;
+
+  const rowsInParcela = d.r.filter(row => ((row[pIdx]??'').trim() || '—') === parcelaValue);
+  if(!rowsInParcela.length) return null;
+
+  const overall = computeProgressForRows(name, h, rowsInParcela);
+
+  const groups = new Map();
+  rowsInParcela.forEach(row=>{
+    const key = (row[ctIdx]??'').trim() || '—';
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  const items = [...groups.entries()]
+    .map(([value, rows]) => {
+      const prog = computeProgressForRows(name, h, rows);
+      return prog ? { value, ...prog } : null;
+    })
+    .filter(Boolean)
+    .sort((a,b) => String(a.value).localeCompare(String(b.value), 'es', {numeric:true}));
+
+  return { groupCol: ctCol, items, overall };
+}
+
 // Verde (avanzado) → rojo (pendiente), interpolando por el hue HSL.
 function avancePctColor(pct){
   const hue = Math.max(0, Math.min(120, pct*1.2));
@@ -2385,6 +2423,55 @@ function renderAvanceDetail(){
 
   if(!breakdown || !breakdown.items.length){
     resultsEl.innerHTML = `<div class="state"><div class="ico">📊</div><h3>Sin desglose disponible</h3><p>Esta hoja no tiene columna de Parcela, CT, Anillo o Dirección para desglosar el avance.</p></div>`;
+    return;
+  }
+
+  // Si el desglose es por Parcela y la hoja también tiene columna de CT,
+  // cada barra de parcela se puede tocar para ver el desglose por CT.
+  const isParcelaGroup = /parcela/i.test(breakdown.groupCol);
+  const hasCt = isParcelaGroup && !!detectCTColName(allData[name]?.h||[]);
+  const nameEnc = encodeURIComponent(name);
+
+  resultsEl.innerHTML = `<div class="av-list">${breakdown.items.map(it=>{
+    const valEnc = encodeURIComponent(it.value);
+    return `
+    <div class="av-card${hasCt?' clickable':''}" ${hasCt?`onclick="openAvanceDetail2('${nameEnc}','${valEnc}')"`:''}>
+      <div class="av-card-top">
+        <div class="av-card-name">${esc(breakdown.groupCol)}: ${esc(it.value)}${hasCt?' <span class="av-chevron">›</span>':''}</div>
+        <div class="av-card-pct" style="color:${avancePctColor(it.pct)}">${it.pct}%</div>
+      </div>
+      <div class="av-track"><div class="av-fill" style="width:${it.pct}%;background:${avancePctColor(it.pct)}"></div></div>
+      <div class="av-card-sub"><span>${esc(it.doneLabel)}</span><span>${esc(it.unit)}</span></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function openAvanceDetail2(nameEnc, valueEnc){
+  pushScreen({screen:'avances-detail2', sheet:decodeURIComponent(nameEnc), parcela:decodeURIComponent(valueEnc)});
+}
+function closeAvanceDetail2(){
+  pushScreen({screen:'avances-detail', sheet:avanceDetailSheet});
+}
+
+function renderAvanceDetail2(sheetName, parcelaValue){
+  const summaryEl = document.getElementById('av-summary');
+  const resultsEl = document.getElementById('av-results');
+
+  const breakdown = computeCtBreakdownForParcela(sheetName, parcelaValue);
+  const pct = breakdown?.overall ? breakdown.overall.pct : 0;
+
+  summaryEl.innerHTML = `
+    <button class="av-back" onclick="closeAvanceDetail2()">‹ ${esc(sheetName)}</button>
+    <div class="av-hero">
+      <div>
+        <div class="av-hero-lbl">${esc(sheetName)} · Parcela ${esc(parcelaValue)}</div>
+        <div class="av-hero-sub">${breakdown ? 'Desglose por ' + esc(breakdown.groupCol) : 'Sin CT para desglosar'}</div>
+      </div>
+      <div class="av-hero-val">${pct}%</div>
+    </div>`;
+
+  if(!breakdown || !breakdown.items.length){
+    resultsEl.innerHTML = `<div class="state"><div class="ico">📊</div><h3>Sin datos</h3><p>No hay CTs para esta parcela.</p></div>`;
     return;
   }
 
