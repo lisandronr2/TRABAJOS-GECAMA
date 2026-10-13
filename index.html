@@ -354,6 +354,12 @@ tr:last-child td{border-bottom:none}
 
 /* ── PRINT ── */
 @media print{
+  /* % Avances nunca se imprime: al ser position:fixed se repetiría en cada
+     página y se mezclaría con el Resumen/Incidencias/tabla impresos. */
+  #avances-overlay{
+    display:none!important;visibility:hidden!important;
+    position:absolute!important;top:-99999px!important;transform:none!important;
+  }
   /* Default print (main table) — ocultar TODOS los overlays salvo el activo */
   body:not(.print-resumen) #resumen-overlay,
   body:not(.print-incidencias) #incidencias-overlay {
@@ -2602,10 +2608,40 @@ async function resolverIncidencia(row, btn){
   }
 }
 
+// En la PWA instalada (display:standalone) Android/Chrome tiene un bug conocido:
+// window.print() no hace nada dentro del contexto standalone. La solución
+// estándar es abrir el contenido en una pestaña normal del navegador (donde
+// print() sí funciona) y lanzar la impresión ahí. Para el resto de casos
+// (pestaña normal, escritorio) el comportamiento es exactamente el de antes.
+function isStandalonePWA(){
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function openPrintWindow(){
+  const win = window.open('', '_blank');
+  if(!win){
+    toast('⚠️ Habilita las ventanas emergentes para poder imprimir / exportar PDF', 'warn');
+    return;
+  }
+  const styleEl = document.querySelector('style');
+  const bodyClone = document.body.cloneNode(true);
+  bodyClone.querySelectorAll('script').forEach(s=>s.remove());
+  const theme = document.documentElement.getAttribute('data-theme') || '';
+  const html = '<!DOCTYPE html><html lang="es"' + (theme?` data-theme="${theme}"`:'') + '>'
+    + '<head><meta charset="UTF-8"><title>' + esc(document.title) + '</title>' + (styleEl ? styleEl.outerHTML : '') + '</head>'
+    + bodyClone.outerHTML + '</html>';
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => { try{ win.focus(); win.print(); }catch(e){} }, 300);
+}
+
 function printMain(){
   // Cerrar cualquier overlay abierto antes de imprimir la tabla principal
   document.getElementById('resumen-overlay').classList.remove('show');
   document.getElementById('incidencias-overlay').classList.remove('show');
+  document.getElementById('avances-overlay').classList.remove('show');
+  if(isStandalonePWA()){ openPrintWindow(); return; }
   window.print();
 }
 
@@ -2613,7 +2649,13 @@ function printResumen(){
   if(!lastResults) return;
   // Cerrar incidencias si estaba abierto
   document.getElementById('incidencias-overlay').classList.remove('show');
+  document.getElementById('avances-overlay').classList.remove('show');
   document.body.classList.add('print-resumen');
+  if(isStandalonePWA()){
+    openPrintWindow();
+    document.body.classList.remove('print-resumen');
+    return;
+  }
   window.print();
 }
 
@@ -2621,7 +2663,13 @@ function printIncidencias(){
   if(!incItems) return;
   // Cerrar resumen si estaba abierto
   document.getElementById('resumen-overlay').classList.remove('show');
+  document.getElementById('avances-overlay').classList.remove('show');
   document.body.classList.add('print-incidencias');
+  if(isStandalonePWA()){
+    openPrintWindow();
+    document.body.classList.remove('print-incidencias');
+    return;
+  }
   window.print();
 }
 
