@@ -2228,12 +2228,15 @@ function computeProgressForRows(name, h, rows){
   if(dual){
     const idx1 = h.indexOf(dual[0]), idx2 = h.indexOf(dual[1]);
     if(idx1>=0 && idx2>=0){
-      let done=0;
+      // Si existe una columna CANT PP, las filas con CANT PP=1 solo cuentan 1 ítem (no 2)
+      const cantIdx = h.findIndex(c => /^cant[\s_]?pp$/i.test((c||'').trim()));
+      let done=0, total=0;
       rows.forEach(r=>{
+        const isSingle = cantIdx >= 0 && (r[cantIdx]??'').toString().trim() === '1';
+        total += isSingle ? 1 : 2;
         if((r[idx1]??'')!=='') done++;
-        if((r[idx2]??'')!=='') done++;
+        if(!isSingle && (r[idx2]??'')!=='') done++;
       });
-      const total = rows.length*2;
       return { pct: total?Math.round(done/total*100):0, doneLabel:`${done}/${total}`, unit:'ítems' };
     }
   }
